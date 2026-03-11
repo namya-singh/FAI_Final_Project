@@ -36,7 +36,7 @@ class GameState:
         self.step        = step
         self.step_limit  = step_limit
 
-    # ── Terminal checks ──────────────────────
+    # terminal checks 
 
     def is_terminal(self):
         return (
@@ -54,7 +54,7 @@ class GameState:
     def is_timeout(self):
         return self.step >= self.step_limit and not self.agent_won() and not self.pursuer_won()
 
-    # ── Utility / evaluation ─────────────────
+    # utility 
 
     def utility(self):
         """
@@ -86,7 +86,7 @@ class GameState:
         # Agent wants: small ad (close to goal), large sd (far from pursuer)
         return (pd - ad) * 10 + sd * 5
 
-    # ── Move generation ──────────────────────
+    #  move generation 
 
     def get_agent_moves(self):
         """Returns list of (action, new_agent_pos) for all legal agent moves."""
@@ -105,7 +105,7 @@ class GameState:
         moves.append(("STAY", self.pursuer_pos))
         return moves
 
-    # ── State transitions ────────────────────
+    #  state transitions 
 
     def apply_agent_move(self, new_agent_pos):
         """Returns a new GameState after agent moves. Does NOT mutate self."""
@@ -131,7 +131,7 @@ class GameState:
         )
         return new
 
-    # ── Display ──────────────────────────────
+    # display 
 
     def display(self, label=""):
         self.maze.display(
@@ -146,7 +146,7 @@ class GameState:
 
 
 
-#  UTILITY HELPERS
+# utility helpers
 
 
 def _manhattan(a, b):

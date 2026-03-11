@@ -1,7 +1,4 @@
 """
-search.py — Classical Search Algorithms (used for baseline + pursuer AI)
-Project: Adversarial Maze Navigation
-Authors: Vikramaditya Sogani & Namya Singh
 
 Algorithms:
     - BFS
@@ -24,7 +21,7 @@ from node import Node
 
 
 
-#  RESULT CONTAINER
+#  result container
 
 
 @dataclass
@@ -56,7 +53,7 @@ class SearchResult:
 
 
 
-#  HEURISTICS
+#  heuristics
 
 
 def heuristic_manhattan(pos, goal):
@@ -76,7 +73,7 @@ HEURISTICS = {
 
 
 
-#  SHARED HELPER
+#  helper in sharing
 
 
 def _expand(node, maze):

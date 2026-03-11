@@ -1,9 +1,3 @@
-"""
-node.py — Search Node (works for both static maze search and game tree)
-Project: Adversarial Maze Navigation
-Authors: VikramAditya Sogani & Namya Singh
-"""
-
 
 class Node:
     """

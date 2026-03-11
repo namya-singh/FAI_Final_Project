@@ -10,7 +10,7 @@ from search import astar
 
 
 
-#  RESULT CONTAINER
+#  result container
 
 
 @dataclass
@@ -39,7 +39,7 @@ class AdversarialResult:
 
 
 
-#  1. MINIMAX
+#  minimax
 
 
 def minimax(game_state, depth_limit=4):
@@ -109,7 +109,7 @@ def minimax(game_state, depth_limit=4):
 
 
 
-#  2. ALPHA-BETA PRUNING
+#  alpha-beta pruning
 
 
 def alpha_beta(game_state, depth_limit=6):
@@ -188,7 +188,7 @@ def alpha_beta(game_state, depth_limit=6):
 
 
 
-#  3. EXPECTIMAX
+#  expectimax
 
 
 def expectimax(game_state, depth_limit=4, pursuer_randomness=0.5):

@@ -12,7 +12,7 @@ from adversarial_search import (
 
 
 
-#  SAMPLE MAZE
+#  maze view /sample
 
 
 SAMPLE_MAZE = """
@@ -32,7 +32,7 @@ SAMPLE_MAZE = """
 """.strip()
 
 
-#  GAME SIMULATION
+#  game simulation
 
 
 def simulate_game(maze, agent_algo, pursuer_strategy,
@@ -55,7 +55,7 @@ def simulate_game(maze, agent_algo, pursuer_strategy,
         dict with game stats
     """
 
-    # Set up maze (dynamic or static)
+    # Setting up maze (dynamic or static)
     if dynamic:
         dyn_maze = DynamicMaze.from_static(maze, shift_interval=shift_interval,
                                            num_shifts=2, seed=42)
@@ -63,10 +63,10 @@ def simulate_game(maze, agent_algo, pursuer_strategy,
     else:
         active_maze = maze
 
-    # Place pursuer at opposite corner from agent
+    # pursuer at opposite corner from agent
     pursuer_start = (active_maze.rows - 1, 0) \
         if active_maze.start == (0, 0) else (0, active_maze.cols - 1)
-    # Make sure pursuer start is walkable
+    # pursuer start is walkable
     if not active_maze.is_walkable(pursuer_start):
         pursuer_start = (1, active_maze.cols - 2)
 
@@ -93,13 +93,13 @@ def simulate_game(maze, agent_algo, pursuer_strategy,
 
     while not state.is_terminal():
 
-        # ── Shift walls if dynamic ──
+        # shift walls if dynamic
         shifted = False
         if dynamic:
             protected = {state.agent_pos, state.pursuer_pos}
             shifted = active_maze.step(protected_positions=protected)
 
-        # ── Agent move ──────────────
+        # agent move 
         t0 = time.perf_counter()
 
         if agent_algo == "minimax":
@@ -149,7 +149,7 @@ def simulate_game(maze, agent_algo, pursuer_strategy,
         if state.is_terminal():
             break
 
-        # ── Pursuer move ────────────
+        # Pursuer move 
         p_action, new_pursuer_pos = pursuer.choose_move(state)
         state = state.apply_pursuer_move(new_pursuer_pos)
 
@@ -159,7 +159,7 @@ def simulate_game(maze, agent_algo, pursuer_strategy,
             wall_note = " [walls shifted]" if shifted else ""
             state.display(label=f"Step {stats['steps']}{wall_note}")
 
-    # ── Record outcome ──────────
+    #  Record outcome 
     if state.agent_won():
         stats["outcome"] = "agent_win"
     elif state.pursuer_won():
@@ -188,7 +188,7 @@ def _print_game_stats(stats):
 
 
 
-#  COMPARISON TABLE
+#  comparison table
 
 
 def run_comparison(maze, dynamic=False):
@@ -218,7 +218,7 @@ def run_comparison(maze, dynamic=False):
 
 
 
-#  ENTRY POINT
+#  entry point
 
 
 def main():

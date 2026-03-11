@@ -14,7 +14,7 @@ from collections import deque
 
 
 
-#  BASE MAZE (static)
+#  base maze(its static)
 
 
 class Maze:
@@ -22,7 +22,7 @@ class Maze:
     WALL = 1
 
     def __init__(self, grid, start, goal):
-        self.grid  = [row[:] for row in grid]   # deep copy
+        self.grid  = [row[:] for row in grid]   
         self.rows  = len(grid)
         self.cols  = len(grid[0])
         self.start = start
@@ -96,7 +96,7 @@ class Maze:
         print("+" + "──" * self.cols + "+")
         print(f"  Start:{self.start}  Goal:{self.goal}  Size:{self.rows}×{self.cols}\n")
 
-    # ── Factory: load from string ────────────
+    #Factory: load from string 
 
     @classmethod
     def from_string(cls, text):
@@ -122,7 +122,7 @@ class Maze:
         assert start and goal, "Maze string must contain 'S' and 'G'"
         return cls(grid, start, goal)
 
-    # ── Factory: random generation ───────────
+    # Factory: random generation
 
     @classmethod
     def generate_random(cls, rows=15, cols=15, obstacle_density=0.28, seed=None):
@@ -160,7 +160,7 @@ class Maze:
         return False
 
 
-#  DYNAMIC MAZE (walls shift every N steps)
+#  dynamic maze (walls shift every N steps)
 
 
 class DynamicMaze(Maze):
