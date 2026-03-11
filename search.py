@@ -1,9 +1,15 @@
 """
 search.py — Classical Search Algorithms (used for baseline + pursuer AI)
 Project: Adversarial Maze Navigation
-Authors: VikramAditya Sogani & Namya Singh
+Authors: Vikramaditya Sogani & Namya Singh
 
-Algorithms: BFS, DFS, UCS, A* (manhattan / euclidean heuristics)
+Algorithms:
+    - BFS
+    - DFS
+    - UCS
+    - A* (manhattan / euclidean heuristics)
+    - Hill Climbing
+    - Beam Search
 Each returns a SearchResult.
 """
 
@@ -216,3 +222,104 @@ def astar(maze, heuristic_name="manhattan", start=None):
 
     return SearchResult("A*", heuristic=heuristic_name,
                         runtime_ms=(time.perf_counter()-t0)*1000, nodes_expanded=expanded)
+
+
+# Hill-Climbing
+
+def hill_climb(maze, heuristic_name="manhattan", start=None,
+               allow_sideways=False, max_sideways=10):
+    h = HEURISTICS[heuristic_name]
+    t0 = time.perf_counter()
+    current = Node(start or maze.start)
+    expanded = 0
+    sideways = 0
+    visited = {current.state}
+
+    while True:
+        if maze.is_goal(current.state):
+            return SearchResult("Hill Climb", heuristic=heuristic_name,success=True,
+                                path=current.path(), actions=current.solution(), path_cost=current.path_cost,
+                                nodes_expanded=expanded, max_frontier=1,
+                                runtime_ms=(time.perf_counter()-t0)*1000
+            )
+
+        neighbors = list(_expand(current, maze))
+        if not neighbors:
+            break
+
+        expanded += 1
+        current_h = h(current.state, maze.goal)
+
+        neighbors.sort(key=lambda n: h(n.state, maze.goal))
+        best = neighbors[0]
+        best_h = h(best.state, maze.goal)
+
+        # only strict improvement followed
+        if best_h < current_h:
+            current = best
+            sideways = 0
+            visited.add(current.state)
+            continue
+
+        # Sideways movement
+        if (allow_sideways and best_h == current_h
+                and sideways < max_sideways
+                and best.state not in visited):
+            current = best
+            sideways += 1
+            visited.add(current.state)
+            continue
+
+        # escapes from Local maxima/plateau
+        break
+
+    return SearchResult("Hill Climb", heuristic=heuristic_name, runtime_ms=(time.perf_counter()-t0)*1000,
+                        nodes_expanded=expanded, max_frontier=1)
+
+# Beam Search
+
+def beam_search(maze, beam_width=3, heuristic_name="manhattan", start=None):
+    h = HEURISTICS[heuristic_name]
+    t0 = time.perf_counter()
+    root = Node(start or maze.start)
+
+    frontier = [root]
+    explored = set()
+    expanded = 0
+    max_f = 1
+
+    while frontier:
+        max_f = max(max_f, len(frontier))
+
+        # check before expanding
+        for node in frontier:
+            if maze.is_goal(node.state):
+                return SearchResult(f"Beam Search(k={beam_width})", heuristic=heuristic_name,
+                                    success=True, path=node.path(), actions=node.solution(),
+                                    path_cost=node.path_cost, nodes_expanded=expanded,
+                                    max_frontier=max_f, runtime_ms=(time.perf_counter()-t0)*1000
+                                    )
+
+        next_level = []
+
+        for node in frontier:
+            if node.state in explored:
+                continue
+
+            explored.add(node.state)
+            expanded += 1
+
+            for child in _expand(node, maze):
+                if child.state not in explored:
+                    next_level.append(child)
+
+        if not next_level:
+            break
+
+        next_level.sort(key=lambda n: h(n.state, maze.goal))
+        frontier = next_level[:beam_width]
+
+    return SearchResult(f"Beam Search(k={beam_width})", heuristic=heuristic_name,
+                        runtime_ms=(time.perf_counter()-t0)*1000, nodes_expanded=expanded,
+                        max_frontier=max_f
+                        )

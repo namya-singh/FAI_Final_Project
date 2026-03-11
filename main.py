@@ -4,7 +4,7 @@ import argparse
 import time
 from maze              import Maze, DynamicMaze
 from game_state        import GameState, Turn
-from search            import bfs, astar as static_astar
+from search            import bfs, dfs, ucs, astar as static_astar, hill_climb, beam_search
 from adversarial_search import (
     minimax, alpha_beta, expectimax,
     LRTAStar, PursuerAI
@@ -124,6 +124,18 @@ def simulate_game(maze, agent_algo, pursuer_strategy,
             action, new_agent_pos = lrta.step(state.agent_pos)
             stats["total_time_ms"] += (time.perf_counter() - t0) * 1000
 
+        elif agent_algo == "hill_climb":
+            result = hill_climb(active_maze, "manhattan", start=state.agent_pos)
+            new_agent_pos = result.path[1] if len(result.path) > 1 else state.agent_pos
+            stats["total_nodes"] += result.nodes_expanded
+            stats["total_time_ms"] += result.runtime_ms
+
+        elif agent_algo == "beam_search":
+            result = beam_search(active_maze, 3, heuristic_name="manhattan", start=state.agent_pos)
+            new_agent_pos = result.path[1] if len(result.path) > 1 else state.agent_pos
+            stats["total_nodes"] += result.nodes_expanded
+            stats["total_time_ms"] += result.runtime_ms
+
         else:
             raise ValueError(f"Unknown agent_algo: {agent_algo}")
 
@@ -181,7 +193,7 @@ def _print_game_stats(stats):
 
 def run_comparison(maze, dynamic=False):
     """Run all agent algorithms against all pursuer difficulties and print comparison."""
-    algorithms = ["minimax", "alpha_beta", "expectimax", "lrta"]
+    algorithms = ["minimax", "alpha_beta", "expectimax", "lrta", "hill_climb", "beam_search"]
     pursuers   = ["random", "greedy", "astar"]
 
     print(f"\n{'═'*70}")
@@ -215,7 +227,7 @@ def main():
     parser.add_argument("--density", type=float, default=0.25)
     parser.add_argument("--seed",    type=int,   default=7)
     parser.add_argument("--algo",    type=str,   default=None,
-                        choices=["minimax","alpha_beta","expectimax","lrta"])
+                        choices=["minimax","alpha_beta","expectimax","lrta","hill_climb","beam_search"])
     parser.add_argument("--pursuer", type=str,   default="greedy",
                         choices=["random","greedy","astar"])
     parser.add_argument("--dynamic", action="store_true")
@@ -244,6 +256,16 @@ def main():
         print("  DEMO: LRTA* agent vs Greedy pursuer (Dynamic Maze)")
         print("═"*50)
         simulate_game(maze, "lrta", "greedy", dynamic=True, verbose=True)
+
+        print("\n" + "="*50)
+        print("  DEMO: Hill-Climbing agent vs Greedy pursuer (Static Maze)")
+        print("="*50)
+        simulate_game(maze, "hill_climb", "greedy", dynamic=False, verbose=True)
+
+        print("\n" + "="*50)
+        print("  DEMO: Beam search agent vs Greedy pursuer (Dynamic Maze)")
+        print("="*50)
+        simulate_game(maze, "beam_search", "greedy", dynamic=True, verbose=True)
 
         print("\n" + "═"*50)
         print("  FULL COMPARISON TABLE")
