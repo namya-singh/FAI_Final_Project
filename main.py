@@ -43,8 +43,8 @@ def simulate_game(maze, agent_algo, pursuer_strategy,
 
     Args:
         maze             : Maze instance
-        agent_algo       : 'minimax' | 'alpha_beta' | 'expectimax' | 'lrta'
-        pursuer_strategy : 'random' | 'greedy' | 'astar'
+        agent_algo       : 'minimax' | 'alpha_beta' | 'expectimax' | 'lrta' | 'hill_climb' | 'beam_search'
+        pursuer_strategy : 'random' | 'greedy' | 'astar' | 'beam'
         depth_limit      : search depth for tree-based algorithms
         dynamic          : if True, walls shift during the game
         shift_interval   : steps between wall shifts (only if dynamic=True)
@@ -55,7 +55,7 @@ def simulate_game(maze, agent_algo, pursuer_strategy,
         dict with game stats
     """
 
-    # Setting up maze (dynamic or static)
+    # Set up maze (dynamic or static)
     if dynamic:
         dyn_maze = DynamicMaze.from_static(maze, shift_interval=shift_interval,
                                            num_shifts=2, seed=42)
@@ -72,7 +72,7 @@ def simulate_game(maze, agent_algo, pursuer_strategy,
 
     state   = GameState(active_maze, active_maze.start, pursuer_start,
                         turn=Turn.AGENT, step_limit=step_limit)
-    pursuer = PursuerAI(strategy=pursuer_strategy)
+    pursuer = PursuerAI(strategy=pursuer_strategy, beam_width=3)
     lrta    = LRTAStar(active_maze) if agent_algo == "lrta" else None
 
     stats = {
@@ -99,7 +99,7 @@ def simulate_game(maze, agent_algo, pursuer_strategy,
             protected = {state.agent_pos, state.pursuer_pos}
             shifted = active_maze.step(protected_positions=protected)
 
-        # agent move 
+        # agent move
         t0 = time.perf_counter()
 
         if agent_algo == "minimax":
@@ -126,13 +126,19 @@ def simulate_game(maze, agent_algo, pursuer_strategy,
 
         elif agent_algo == "hill_climb":
             result = hill_climb(active_maze, "manhattan", start=state.agent_pos)
-            new_agent_pos = result.path[1] if len(result.path) > 1 else state.agent_pos
+            if result.success and len(result.path) > 1:
+                new_agent_pos = result.path[1]
+            else:
+                new_agent_pos = greedy_fallback(active_maze, state.agent_pos)
             stats["total_nodes"] += result.nodes_expanded
             stats["total_time_ms"] += result.runtime_ms
 
         elif agent_algo == "beam_search":
             result = beam_search(active_maze, 3, heuristic_name="manhattan", start=state.agent_pos)
-            new_agent_pos = result.path[1] if len(result.path) > 1 else state.agent_pos
+            if result.success and len(result.path) > 1:
+                new_agent_pos = result.path[1]
+            else:
+                new_agent_pos = greedy_fallback(active_maze, state.agent_pos)
             stats["total_nodes"] += result.nodes_expanded
             stats["total_time_ms"] += result.runtime_ms
 
@@ -149,7 +155,7 @@ def simulate_game(maze, agent_algo, pursuer_strategy,
         if state.is_terminal():
             break
 
-        # Pursuer move 
+        # Pursuer move
         p_action, new_pursuer_pos = pursuer.choose_move(state)
         state = state.apply_pursuer_move(new_pursuer_pos)
 
@@ -159,7 +165,7 @@ def simulate_game(maze, agent_algo, pursuer_strategy,
             wall_note = " [walls shifted]" if shifted else ""
             state.display(label=f"Step {stats['steps']}{wall_note}")
 
-    #  Record outcome 
+    #  Record outcome
     if state.agent_won():
         stats["outcome"] = "agent_win"
     elif state.pursuer_won():
@@ -194,7 +200,7 @@ def _print_game_stats(stats):
 def run_comparison(maze, dynamic=False):
     """Run all agent algorithms against all pursuer difficulties and print comparison."""
     algorithms = ["minimax", "alpha_beta", "expectimax", "lrta", "hill_climb", "beam_search"]
-    pursuers   = ["random", "greedy", "astar"]
+    pursuers   = ["random", "greedy", "beam", "astar"]
 
     print(f"\n{'═'*70}")
     print(f"  COMPARISON {'[DYNAMIC MAZE]' if dynamic else '[STATIC MAZE]'}")
@@ -216,6 +222,21 @@ def run_comparison(maze, dynamic=False):
                   f"{stats['total_time_ms']:>10.1f}")
     print(f"{'─'*70}\n")
 
+# Greedy Fallback for hill_climb & beam_search
+def greedy_fallback(maze, current_position):
+    """
+    Returns a single step greedy move toward the goal from current position
+    Used as a fallback when hill climbing or beam search cannot produce
+    a valid forward path from mid-game state
+    """
+    neighbor = maze.get_neighbors(current_position)
+    if not neighbor:
+        return current_position
+    _, best_position, _ = min(
+        neighbor,
+        key=lambda x: abs(x[1][0] - maze.goal[0]) + abs(x[1][1] - maze.goal[1])
+    )
+    return best_position
 
 
 #  entry point
@@ -229,7 +250,7 @@ def main():
     parser.add_argument("--algo",    type=str,   default=None,
                         choices=["minimax","alpha_beta","expectimax","lrta","hill_climb","beam_search"])
     parser.add_argument("--pursuer", type=str,   default="greedy",
-                        choices=["random","greedy","astar"])
+                        choices=["random","greedy","astar","beam"])
     parser.add_argument("--dynamic", action="store_true")
     parser.add_argument("--compare", action="store_true",
                         help="Run full comparison table instead of a single game")

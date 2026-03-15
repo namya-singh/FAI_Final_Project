@@ -6,7 +6,7 @@ from dataclasses import dataclass, field
 from typing import Optional
 
 from game_state import GameState, Turn, _manhattan
-from search import astar
+from search import astar, beam_search
 
 
 
@@ -357,16 +357,18 @@ class LRTAStar:
 class PursuerAI:
     """
     Controls the pursuer's movement each turn.
-    Three difficulty levels:
+    Four difficulty levels:
       'random'  — moves randomly (easy)
       'greedy'  — always moves toward agent via manhattan (medium)
+      'beam'    — bounded beam search pursuit toward agent (medium-hard)
       'astar'   — full A* toward agent position (hard)
     """
 
-    def __init__(self, strategy="greedy"):
-        assert strategy in ("random", "greedy", "astar"), \
-            "strategy must be 'random', 'greedy', or 'astar'"
+    def __init__(self, strategy="greedy",beam_width=3):
+        assert strategy in ("random", "greedy", "astar", "beam"), \
+            "strategy must be 'random', 'greedy', 'astar' or 'beam'"
         self.strategy = strategy
+        self.beam_width = beam_width
         import random as _r
         self._rng = _r
 
@@ -401,4 +403,23 @@ class PursuerAI:
                     if a == first_action:
                         return (a, p)
             # Fallback to greedy
+            return min(moving, key=lambda m: _manhattan(m[1], game_state.agent_pos))
+
+        elif self.strategy == "beam":
+            from maze import Maze
+            temp = Maze(
+                game_state.maze.grid,
+                game_state.pursuer_pos,
+                game_state.agent_pos,
+            )
+            result = beam_search(
+                maze=temp,
+                beam_width=self.beam_width,
+                heuristic_name="manhattan",
+                start=game_state.pursuer_pos)
+            if result.success and len(result.actions) > 0:
+                first_action = result.actions[0]
+                for a, p in moving:
+                    if a == first_action:
+                        return (a, p)
             return min(moving, key=lambda m: _manhattan(m[1], game_state.agent_pos))
