@@ -1,4 +1,14 @@
+"""
+main.py — game runner, algorithm comparison, and visual simulation
+project: adversarial maze navigation
+authors: vikramaditya sogani & namya singh
 
+usage:
+    python main.py --visual                         # launch pygame visual game
+    python main.py --visual --algo astar --pursuers 2
+    python main.py --compare                        # terminal comparison table
+    python main.py --algo alpha_beta --pursuer astar
+"""
 
 import argparse
 import time
@@ -11,8 +21,7 @@ from adversarial_search import (
 )
 
 
-
-#  maze view /sample
+#  sample maze
 
 
 SAMPLE_MAZE = """
@@ -39,11 +48,11 @@ def simulate_game(maze, agent_algo, pursuer_strategy,
                   depth_limit=4, dynamic=False, shift_interval=6,
                   verbose=True, step_limit=150):
     """
-    Runs one full game between agent and pursuer.
+    runs one full game between agent and pursuer.
 
-    Args:
+    args:
         maze             : Maze instance
-        agent_algo       : 'minimax' | 'alpha_beta' | 'expectimax' | 'lrta'
+        agent_algo       : 'minimax' | 'alpha_beta' | 'expectimax' | 'lrta' | 'hill_climb' | 'beam_search'
         pursuer_strategy : 'random' | 'greedy' | 'astar'
         depth_limit      : search depth for tree-based algorithms
         dynamic          : if True, walls shift during the game
@@ -51,11 +60,11 @@ def simulate_game(maze, agent_algo, pursuer_strategy,
         verbose          : print each step
         step_limit       : max steps before timeout
 
-    Returns:
+    returns:
         dict with game stats
     """
 
-    # Setting up maze (dynamic or static)
+    # setting up maze (dynamic or static)
     if dynamic:
         dyn_maze = DynamicMaze.from_static(maze, shift_interval=shift_interval,
                                            num_shifts=2, seed=42)
@@ -80,7 +89,7 @@ def simulate_game(maze, agent_algo, pursuer_strategy,
         "pursuer"       : pursuer_strategy,
         "dynamic"       : dynamic,
         "steps"         : 0,
-        "outcome"       : None,          # 'agent_win' | 'pursuer_win' | 'timeout'
+        "outcome"       : None,
         "total_nodes"   : 0,
         "total_time_ms" : 0,
         "path"          : [active_maze.start],
@@ -99,7 +108,7 @@ def simulate_game(maze, agent_algo, pursuer_strategy,
             protected = {state.agent_pos, state.pursuer_pos}
             shifted = active_maze.step(protected_positions=protected)
 
-        # agent move 
+        # agent move
         t0 = time.perf_counter()
 
         if agent_algo == "minimax":
@@ -137,11 +146,11 @@ def simulate_game(maze, agent_algo, pursuer_strategy,
             stats["total_time_ms"] += result.runtime_ms
 
         else:
-            raise ValueError(f"Unknown agent_algo: {agent_algo}")
+            raise ValueError(f"unknown agent_algo: {agent_algo}")
 
-        # Safety check
+        # safety check
         if new_agent_pos is None or not active_maze.is_walkable(new_agent_pos):
-            new_agent_pos = state.agent_pos   # stay in place
+            new_agent_pos = state.agent_pos
 
         state = state.apply_agent_move(new_agent_pos)
         stats["path"].append(new_agent_pos)
@@ -149,7 +158,7 @@ def simulate_game(maze, agent_algo, pursuer_strategy,
         if state.is_terminal():
             break
 
-        # Pursuer move 
+        # pursuer move
         p_action, new_pursuer_pos = pursuer.choose_move(state)
         state = state.apply_pursuer_move(new_pursuer_pos)
 
@@ -159,7 +168,7 @@ def simulate_game(maze, agent_algo, pursuer_strategy,
             wall_note = " [walls shifted]" if shifted else ""
             state.display(label=f"Step {stats['steps']}{wall_note}")
 
-    #  Record outcome 
+    # record outcome
     if state.agent_won():
         stats["outcome"] = "agent_win"
     elif state.pursuer_won():
@@ -187,12 +196,11 @@ def _print_game_stats(stats):
     print(f"{'═'*44}\n")
 
 
-
 #  comparison table
 
 
 def run_comparison(maze, dynamic=False):
-    """Run all agent algorithms against all pursuer difficulties and print comparison."""
+    """run all agent algorithms against all pursuer difficulties and print comparison."""
     algorithms = ["minimax", "alpha_beta", "expectimax", "lrta", "hill_climb", "beam_search"]
     pursuers   = ["random", "greedy", "astar"]
 
@@ -217,25 +225,43 @@ def run_comparison(maze, dynamic=False):
     print(f"{'─'*70}\n")
 
 
-
 #  entry point
 
 
 def main():
     parser = argparse.ArgumentParser(description="Adversarial Maze Navigation")
-    parser.add_argument("--size",    type=int,   default=13)
-    parser.add_argument("--density", type=float, default=0.25)
-    parser.add_argument("--seed",    type=int,   default=7)
-    parser.add_argument("--algo",    type=str,   default=None,
-                        choices=["minimax","alpha_beta","expectimax","lrta","hill_climb","beam_search"])
-    parser.add_argument("--pursuer", type=str,   default="greedy",
+    parser.add_argument("--size",     type=int,   default=13)
+    parser.add_argument("--density",  type=float, default=0.25)
+    parser.add_argument("--seed",     type=int,   default=7)
+    parser.add_argument("--algo",     type=str,   default=None,
+                        choices=["minimax","alpha_beta","expectimax","lrta",
+                                 "hill_climb","beam_search","astar","alphabeta","manual"])
+    parser.add_argument("--pursuer",  type=str,   default="greedy",
                         choices=["random","greedy","astar"])
-    parser.add_argument("--dynamic", action="store_true")
-    parser.add_argument("--compare", action="store_true",
-                        help="Run full comparison table instead of a single game")
+    parser.add_argument("--dynamic",  action="store_true")
+    parser.add_argument("--compare",  action="store_true",
+                        help="run full comparison table")
+    parser.add_argument("--visual",   action="store_true",
+                        help="launch pygame visual game")
+    parser.add_argument("--pursuers", type=int,   default=2,
+                        help="number of pursuers in visual mode (1-3)")
+    parser.add_argument("--no-fog",   action="store_true",
+                        help="disable fog of war in visual mode")
     args = parser.parse_args()
 
-    # Build maze
+    # visual mode — launch pygame window
+    if args.visual:
+        from visual_game import launch
+        launch(
+            agent_algo       = args.algo or "astar",
+            pursuer_strategy = args.pursuer,
+            num_pursuers     = min(3, max(1, args.pursuers)),
+            dynamic          = args.dynamic,
+            fog              = not args.no_fog,
+        )
+        return
+
+    # terminal mode
     maze = Maze.generate_random(args.size, args.size, args.density, seed=args.seed)
 
     if args.compare:
@@ -246,7 +272,7 @@ def main():
         simulate_game(maze, args.algo, args.pursuer,
                       dynamic=args.dynamic, verbose=True)
     else:
-        # Default demo: one game with each algorithm, then show comparison
+        # default demo: one game with each algorithm, then comparison table
         print("\n" + "═"*50)
         print("  DEMO: Alpha-Beta agent vs Greedy pursuer (Static)")
         print("═"*50)
