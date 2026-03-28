@@ -1,0 +1,13 @@
+mode,agent,pursuer,dynamic,visibility_radius,size,density,n_runs,win_rate,avg_steps,std_steps,avg_time_ms,std_time_ms,avg_nodes_expanded,avg_cells_explored,avg_wall_shifts,avg_phase_switch_step
+full,alpha_beta,greedy,False,,11,0.25,1,1,26,0.0,6.4158,0.0,3632,,,
+full,alpha_beta,random,False,,11,0.25,1,1,19,0.0,7.6433,0.0,2243,,,
+full,beam_search,greedy,False,,11,0.25,1,0,14,0.0,1.1848,0.0,355,,,
+full,beam_search,random,False,,11,0.25,1,1,19,0.0,1.3092,0.0,396,,,
+full,expectimax,greedy,False,,11,0.25,1,1,28,0.0,17.9955,0.0,8881,,,
+full,expectimax,random,False,,11,0.25,1,1,19,0.0,11.0122,0.0,5083,,,
+full,hill_climb,greedy,False,,11,0.25,1,0,14,0.0,0.6788,0.0,189,,,
+full,hill_climb,random,False,,11,0.25,1,1,19,0.0,0.8028,0.0,210,,,
+full,lrta,greedy,False,,11,0.25,1,0,14,0.0,0.0655,0.0,0,,,
+full,lrta,random,False,,11,0.25,1,1,19,0.0,0.1037,0.0,0,,,
+full,minimax,greedy,False,,11,0.25,1,1,26,0.0,13.5617,0.0,7472,,,
+full,minimax,random,False,,11,0.25,1,1,19,0.0,8.2049,0.0,5083,,,

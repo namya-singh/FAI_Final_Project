@@ -1,0 +1,10 @@
+mode,agent,n_runs,win_rate,avg_steps,avg_time_ms,avg_nodes_expanded,avg_cells_explored
+full,alpha_beta,64,0.4062,34.6875,9.805,5070.3594,
+full,beam_search,64,0.3906,14.1875,1.6674,428.4688,
+full,expectimax,64,0.4062,35.9375,24.4721,11097.125,
+full,hill_climb,64,0.2188,21.6562,0.7142,163.2188,
+full,lrta,64,0.375,14.9844,0.0895,0,
+full,minimax,64,0.4062,34.6875,18.3758,10772.375,
+partial,exploration,192,0.3125,19.4167,0.288,,0.5936
+partial,online_astar,192,0.4323,14.1979,2.8066,,0.5406
+partial,online_lrta,192,0.3281,14.9844,0.0933,,0.5114

@@ -1,0 +1,862 @@
+"""
+visual_game.py - visual simulation for adversial maze navigation
+project: adversarial maze navigation
+authors: vikramaditya sogani & namya singh
+"""
+
+import pygame
+import pygame.gfxdraw
+import sys
+import math
+import heapq
+import random
+from collections import deque
+
+from maze         import Maze, DynamicMaze
+from game_objects import (
+    OPEN, WALL, TRAP, POWERUP, MUD, WATER, ROAD,
+    TERRAIN_COST, AgentStatus, PursuerStatus, place_objects,
+    PU_REVEAL, PU_SPEED, PU_SHIELD, PU_FREEZE
+)
+
+ROWS, COLS  = 17, 17
+CELL        = 38
+FOG_RADIUS  = 4
+MAZE_W  = COLS * CELL
+MAZE_H  = ROWS * CELL
+PANEL_W = 270
+WIN_W   = MAZE_W + PANEL_W
+WIN_H   = MAZE_H + 70
+
+BLACK       = (0,    0,    0)
+DARK_BG     = (5,    5,   20)
+WALL_DARK   = (10,  20,   80)
+WALL_BRIGHT = (30,  60,  200)
+WALL_GLOW   = (60, 100,  255)
+PACMAN_Y    = (255, 220,   0)
+GHOST_COLS  = [(255, 80, 80), (255, 180, 80), (180, 80, 255)]
+GHOST_SCARED= (60,  80,  200)
+GHOST_EYE_W = (255, 255, 255)
+GHOST_EYE_P = (30,  30,  180)
+PELLET_C    = (255, 220, 180)
+POWER_C     = (255, 255, 100)
+TRAP_C      = (220,  40,  40)
+MUD_C       = (100,  70,  30)
+WATER_C     = (30,   90, 200)
+ROAD_C      = (30,   80,  40)
+GOAL_C      = (60,  240, 100)
+PANEL_BG    = (8,    8,   25)
+TEXT_W      = (220, 225, 255)
+TEXT_DIM    = (100, 105, 160)
+ACCENT      = (60,  160, 255)
+GOOD_C      = (60,  220, 100)
+BAD_C       = (220,  60,  60)
+WARN_C      = (255, 180,  40)
+
+ALGO_NAMES = {
+    "minimax": "Minimax",
+    "alpha_beta": "Alpha-Beta",
+    "lrta": "LRTA*",
+    "manual": "Manual",
+}
+
+PURSUER_NAMES = {
+    "random": "Random",
+    "greedy": "Greedy",
+    "beam": "Beam Search",
+    "astar": "A*",
+}
+
+SCREEN_START    = "start"
+SCREEN_GAME     = "game"
+SCREEN_GAMEOVER = "gameover"
+HIGH_SCORES     = []
+
+
+def draw_pacman(surf, cx, cy, radius, mouth_angle, facing):
+    start_a = math.radians(facing + mouth_angle)
+    end_a   = math.radians(facing + 360 - mouth_angle)
+    points  = [(cx, cy)]
+    steps   = 40
+    for i in range(steps + 1):
+        a = start_a + (end_a - start_a) * i / steps
+        points.append((cx + radius * math.cos(a), cy + radius * math.sin(a)))
+    if len(points) > 2:
+        pygame.gfxdraw.filled_polygon(surf, [(int(x), int(y)) for x, y in points], PACMAN_Y)
+        pygame.gfxdraw.aapolygon(surf, [(int(x), int(y)) for x, y in points], PACMAN_Y)
+    ex = cx - int(radius * 0.15 * math.cos(math.radians(facing)))
+    ey = cy - int(radius * 0.5)
+    pygame.gfxdraw.filled_circle(surf, int(ex), int(ey), max(2, radius // 5), (30, 20, 0))
+
+
+def draw_ghost(surf, cx, cy, radius, color, scared=False, frozen=False):
+    col = (100, 180, 255) if frozen else (GHOST_SCARED if scared else color)
+    rect = pygame.Rect(cx - radius, cy - radius, radius * 2, radius * 2)
+    pygame.draw.ellipse(surf, col, rect)
+    pygame.draw.rect(surf, col, pygame.Rect(cx - radius, cy, radius * 2, radius))
+    bump_r = radius // 3
+    for i in range(3):
+        bx = cx - radius + bump_r + i * bump_r * 2
+        pygame.draw.circle(surf, DARK_BG, (bx, cy + radius), bump_r)
+    if not scared and not frozen:
+        for ex_off in [-radius // 3, radius // 3]:
+            pygame.draw.circle(surf, GHOST_EYE_W, (cx + ex_off, cy - radius // 4), radius // 4)
+            pygame.draw.circle(surf, GHOST_EYE_P, (cx + ex_off + 1, cy - radius // 4 + 1), radius // 8)
+    else:
+        for ex_off in [-radius // 3, radius // 3]:
+            ex, ey, r2 = cx + ex_off, cy - radius // 4, radius // 5
+            pygame.draw.line(surf, (255, 200, 200), (ex - r2, ey - r2), (ex + r2, ey + r2), 2)
+            pygame.draw.line(surf, (255, 200, 200), (ex + r2, ey - r2), (ex - r2, ey + r2), 2)
+
+
+def draw_wall_cell(surf, x, y, size, t):
+    pygame.draw.rect(surf, WALL_DARK, (x, y, size, size))
+    pulse = int(10 * math.sin(t / 600 + (x + y) * 0.01))
+    glow  = tuple(min(255, WALL_BRIGHT[i] + pulse) for i in range(3))
+    pygame.draw.rect(surf, glow, (x + 1, y + 1, size - 2, size - 2), 2)
+
+
+def draw_pellet(surf, cx, cy, radius):
+    pygame.gfxdraw.filled_circle(surf, cx, cy, radius, PELLET_C)
+    pygame.gfxdraw.aacircle(surf, cx, cy, radius, PELLET_C)
+
+
+def draw_powerup_pellet(surf, cx, cy, radius, t):
+    r = radius + int(3 * math.sin(t / 200))
+    pygame.gfxdraw.filled_circle(surf, cx, cy, r, POWER_C)
+    pygame.gfxdraw.aacircle(surf, cx, cy, r, (255, 255, 200))
+
+
+class SmoothPos:
+    def __init__(self, row, col):
+        self.row = row; self.col = col
+        self.px  = col * CELL + CELL // 2
+        self.py  = row * CELL + CELL // 2
+        self.tx  = self.px; self.ty = self.py
+        self.spd = 0.25
+
+    def set_target(self, row, col):
+        self.row = row; self.col = col
+        self.tx  = col * CELL + CELL // 2
+        self.ty  = row * CELL + CELL // 2
+
+    def update(self):
+        self.px += (self.tx - self.px) * self.spd
+        self.py += (self.ty - self.py) * self.spd
+
+    def center(self):
+        return int(self.px), int(self.py)
+
+
+class Particle:
+    def __init__(self, x, y, color):
+        angle = random.uniform(0, 2 * math.pi)
+        speed = random.uniform(1.5, 5)
+        self.x = x; self.y = y
+        self.vx = math.cos(angle) * speed
+        self.vy = math.sin(angle) * speed
+        self.life = random.randint(20, 45)
+        self.max_life = self.life
+        self.color = color
+        self.size = random.randint(2, 6)
+
+    def update(self):
+        self.x += self.vx; self.y += self.vy
+        self.vy += 0.12; self.vx *= 0.97; self.life -= 1
+
+    def draw(self, surf):
+        col = tuple(min(255, v) for v in self.color[:3])
+        pygame.gfxdraw.filled_circle(surf, int(self.x), int(self.y), self.size, col)
+
+    def alive(self): return self.life > 0
+
+
+def spawn_particles(particles, x, y, color, count=15):
+    for _ in range(count):
+        particles.append(Particle(x, y, color))
+
+
+class FlashMsg:
+    def __init__(self, text, color, duration=90):
+        self.text = text; self.color = color
+        self.timer = duration; self.max_time = duration
+
+    def tick(self): self.timer -= 1
+    def alive(self): return self.timer > 0
+
+
+class WallAnim:
+    def __init__(self, pos, appearing):
+        self.pos = pos; self.appearing = appearing; self.timer = 25
+
+    def alive(self): return self.timer > 0
+    def tick(self): self.timer -= 1
+
+    def draw(self, surf, t):
+        r, c = self.pos
+        x, y = c * CELL, r * CELL
+        progress = 1 - self.timer / 25
+        if self.appearing:
+            size = int(CELL * progress)
+            off  = (CELL - size) // 2
+            col  = tuple(int(v * progress) for v in WALL_BRIGHT)
+            pygame.draw.rect(surf, col, (x + off, y + off, size, size), border_radius=3)
+        else:
+            size = int(CELL * (1 - progress))
+            off  = (CELL - size) // 2
+            col  = tuple(int(v * (1 - progress)) for v in WALL_BRIGHT)
+            if size > 0:
+                pygame.draw.rect(surf, col, (x + off, y + off, size, size), border_radius=3)
+            for _ in range(2):
+                dx = random.randint(-CELL // 2, CELL // 2)
+                dy = random.randint(-CELL // 2, CELL // 2)
+                pygame.draw.circle(surf, WALL_GLOW, (x + CELL // 2 + dx, y + CELL // 2 + dy), 2)
+
+
+class StartScreen:
+    def __init__(self, screen, fonts):
+        self.screen = screen; self.fonts = fonts
+        self.algo = "lrta"; self.pursuer = "greedy"
+        self.pursuers = 2; self.dynamic = True; self.fog = True
+        self.algo_opts = ["lrta", "minimax", "alpha_beta", "manual"]
+        self.pursuer_opts = ["random", "greedy", "beam", "astar"]
+        self.algo_idx = 0; self.pursuer_idx = 1; self.t = 0
+        self.dots = [{"x": random.randint(0, WIN_W), "y": random.randint(0, WIN_H),
+                      "r": random.randint(2, 5), "s": random.uniform(0.3, 1.2)}
+                     for _ in range(40)]
+
+    def handle(self, event):
+        if event.type == pygame.KEYDOWN:
+            if event.key in (pygame.K_RETURN, pygame.K_SPACE): return "start"
+            elif event.key == pygame.K_LEFT:
+                self.algo_idx = (self.algo_idx - 1) % len(self.algo_opts)
+                self.algo = self.algo_opts[self.algo_idx]
+            elif event.key == pygame.K_RIGHT:
+                self.algo_idx = (self.algo_idx + 1) % len(self.algo_opts)
+                self.algo = self.algo_opts[self.algo_idx]
+            elif event.key == pygame.K_UP:
+                self.pursuer_idx = (self.pursuer_idx - 1) % len(self.pursuer_opts)
+                self.pursuer = self.pursuer_opts[self.pursuer_idx]
+            elif event.key == pygame.K_DOWN:
+                self.pursuer_idx = (self.pursuer_idx + 1) % len(self.pursuer_opts)
+                self.pursuer = self.pursuer_opts[self.pursuer_idx]
+            elif event.key == pygame.K_1: self.pursuers = 1
+            elif event.key == pygame.K_2: self.pursuers = 2
+            elif event.key == pygame.K_3: self.pursuers = 3
+            elif event.key == pygame.K_d: self.dynamic = not self.dynamic
+            elif event.key == pygame.K_f: self.fog = not self.fog
+        return None
+
+    def draw(self):
+        self.t += 1
+        self.screen.fill(DARK_BG)
+        for d in self.dots:
+            d["y"] += d["s"]
+            if d["y"] > WIN_H: d["y"] = 0
+            pulse = int(180 + 60 * math.sin(self.t / 30 + d["x"]))
+            pygame.gfxdraw.filled_circle(self.screen, int(d["x"]), int(d["y"]),
+                                         d["r"], (pulse, pulse // 2, 0))
+        cy = 70
+        title = self.fonts["xl"].render("MAZE  NAVIGATOR", True, PACMAN_Y)
+        self.screen.blit(title, (WIN_W // 2 - title.get_width() // 2, cy))
+        mouth = int(30 * abs(math.sin(self.t / 15)))
+        draw_pacman(self.screen, WIN_W // 2 - title.get_width() // 2 - 40, cy + 18, 18, mouth, 0)
+        cy += 55
+        sub = self.fonts["md"].render(
+            "adversarial search  |  partial observability  |  dynamic maze", True, TEXT_DIM)
+        self.screen.blit(sub, (WIN_W // 2 - sub.get_width() // 2, cy))
+        cy += 50
+        bw, bh = 480, 230
+        bx = WIN_W // 2 - bw // 2
+        pygame.draw.rect(self.screen, (12, 12, 40), (bx, cy, bw, bh), border_radius=12)
+        pygame.draw.rect(self.screen, WALL_BRIGHT, (bx, cy, bw, bh), 2, border_radius=12)
+
+        def row(label, value, yy, highlight=False):
+            ls = self.fonts["md"].render(label, True, TEXT_DIM)
+            vs = self.fonts["md"].render(value, True, PACMAN_Y if highlight else TEXT_W)
+            self.screen.blit(ls, (bx + 30, cy + yy))
+            self.screen.blit(vs, (bx + bw - vs.get_width() - 30, cy + yy))
+
+        row("agent algorithm",   f"< {ALGO_NAMES.get(self.algo, self.algo)} >", 22, True)
+        row("pursuer strategy",  f"< {PURSUER_NAMES.get(self.pursuer, self.pursuer)} >", 55, True)
+        row("number of pursuers", f"  {self.pursuers}  (press 1/2/3)", 88)
+        row("dynamic walls", "ON  (D to toggle)" if self.dynamic else "OFF (D to toggle)", 121)
+        row("fog of war",    "ON  (F to toggle)" if self.fog     else "OFF (F to toggle)", 154)
+        hint = self.fonts["sm"].render(
+            "< / > change agent     up/down change pursuer     ENTER to start", True, TEXT_DIM)
+        self.screen.blit(hint, (WIN_W // 2 - hint.get_width() // 2, cy + bh - 28))
+        cy2 = cy + bh + 25
+        for i, line in enumerate([
+            "in-game:  SPACE pause    R new maze    1-4 switch algorithm",
+            "          +/- speed      F fog         D dynamic walls    ESC quit",
+        ]):
+            s = self.fonts["sm"].render(line, True, TEXT_DIM)
+            self.screen.blit(s, (WIN_W // 2 - s.get_width() // 2, cy2 + i * 20))
+        if HIGH_SCORES:
+            cy3 = cy2 + 55
+            hs = self.fonts["lg"].render("HIGH SCORES", True, ACCENT)
+            self.screen.blit(hs, (WIN_W // 2 - hs.get_width() // 2, cy3))
+            for i, (sc, nm) in enumerate(HIGH_SCORES[:5]):
+                s = self.fonts["md"].render(f"#{i+1}  {nm:<18} {sc:>6}", True, TEXT_W)
+                self.screen.blit(s, (WIN_W // 2 - s.get_width() // 2, cy3 + 26 + i * 22))
+
+
+class GameOverScreen:
+    def __init__(self, screen, fonts, outcome, stats):
+        self.screen = screen; self.fonts = fonts
+        self.outcome = outcome; self.stats = stats; self.t = 0
+
+    def handle(self, event):
+        if event.type == pygame.KEYDOWN:
+            if event.key == pygame.K_r:      return "reset"
+            if event.key == pygame.K_RETURN: return "start"
+            if event.key in (pygame.K_ESCAPE, pygame.K_q): return "quit"
+        return None
+
+    def draw(self):
+        self.t += 1
+        overlay = pygame.Surface((WIN_W, WIN_H), pygame.SRCALPHA)
+        overlay.fill((0, 0, 0, 180))
+        self.screen.blit(overlay, (0, 0))
+        won   = self.outcome == "GOAL!"
+        col   = GOOD_C if won else BAD_C
+        msg   = "YOU REACHED THE GOAL!" if won else "CAUGHT BY A PURSUER!"
+        bounce = int(6 * math.sin(self.t / 15))
+        title  = self.fonts["xl"].render(msg, True, col)
+        self.screen.blit(title, (WIN_W // 2 - title.get_width() // 2, WIN_H // 2 - 110 + bounce))
+        sub = self.fonts["lg"].render("WELL PLAYED" if won else "GAME OVER", True, PACMAN_Y)
+        self.screen.blit(sub, (WIN_W // 2 - sub.get_width() // 2, WIN_H // 2 - 65))
+        bw, bh = 400, 160
+        bx = WIN_W // 2 - bw // 2
+        by = WIN_H // 2 - 30
+        pygame.draw.rect(self.screen, (10, 10, 35), (bx, by, bw, bh), border_radius=10)
+        pygame.draw.rect(self.screen, col, (bx, by, bw, bh), 2, border_radius=10)
+        items = [("steps taken", str(self.stats.get("steps", 0))),
+                 ("map explored", f"{self.stats.get('explored', 0):.0f}%"),
+                 ("wall shifts",  str(self.stats.get("shifts", 0))),
+                 ("final score",  str(self.stats.get("score", 0)))]
+        for i, (k, v) in enumerate(items):
+            row_i = i // 2; col_i = i % 2
+            ks = self.fonts["sm"].render(k, True, TEXT_DIM)
+            vs = self.fonts["md"].render(v, True, PACMAN_Y if k == "final score" else TEXT_W)
+            xx = bx + 20 + col_i * (bw // 2)
+            yy = by + 20 + row_i * 55
+            self.screen.blit(ks, (xx, yy))
+            self.screen.blit(vs, (xx, yy + 18))
+        hint = self.fonts["md"].render(
+            "R — new maze     ENTER — menu     ESC — quit", True, TEXT_DIM)
+        self.screen.blit(hint, (WIN_W // 2 - hint.get_width() // 2, WIN_H // 2 + 145))
+
+
+class VisualGame:
+    def __init__(self, agent_algo="lrta", pursuer_strategy="greedy",
+                 num_pursuers=2, dynamic=True, fog_of_war=True):
+        pygame.init()
+        pygame.display.set_caption("Maze Navigator  —  Adversarial AI")
+        self.sound_on = False
+        try:
+            pygame.mixer.init(frequency=44100, size=-16, channels=1, buffer=512)
+            self.sound_on = True
+            self._build_sounds()
+        except Exception:
+            pass
+        self.screen = pygame.display.set_mode((WIN_W, WIN_H))
+        self.clock  = pygame.time.Clock()
+        self.fonts  = {
+            "xl": pygame.font.SysFont("monospace", 24, bold=True),
+            "lg": pygame.font.SysFont("monospace", 16, bold=True),
+            "md": pygame.font.SysFont("monospace", 13),
+            "sm": pygame.font.SysFont("monospace", 11),
+        }
+        self.agent_algo = agent_algo; self.pursuer_strategy = pursuer_strategy
+        self.num_pursuers = num_pursuers; self.dynamic = dynamic; self.fog_of_war = fog_of_war
+        self.speed = 7; self.paused = False; self.tick_acc = 0; self.t = 0
+        self.manual_dir = None; self.screen_mode = SCREEN_START
+        self.start_screen = StartScreen(self.screen, self.fonts)
+        self.go_screen = None; self.game_state_data = {}
+
+    def _build_sounds(self):
+        import numpy as np
+        sr = 44100
+        def make_beep(freq, dur, vol=0.3, shape="sine"):
+            t = np.linspace(0, dur, int(sr * dur), endpoint=False)
+            wave = np.sin(2 * np.pi * freq * t) if shape == "sine" else np.sign(np.sin(2 * np.pi * freq * t))
+            wave = (wave * vol * 32767).astype(np.int16)
+            return pygame.sndarray.make_sound(np.column_stack([wave, wave]))
+        try:
+            self.snd_pellet  = make_beep(880,  0.05)
+            self.snd_powerup = make_beep(1200, 0.15)
+            self.snd_trap    = make_beep(200,  0.2, shape="square")
+            self.snd_win     = make_beep(660,  0.4)
+            self.snd_lose    = make_beep(150,  0.5, shape="square")
+        except Exception:
+            self.sound_on = False
+
+    def _play(self, snd_name):
+        if not self.sound_on: return
+        s = getattr(self, f"snd_{snd_name}", None)
+        if s: s.play()
+
+    def reset(self):
+        base = Maze.generate_random(ROWS, COLS, obstacle_density=0.27, seed=random.randint(0, 99999))
+        self.maze = DynamicMaze.from_static(base, shift_interval=7, num_shifts=3, seed=42) \
+                    if self.dynamic else base
+        self.grid = self.maze.grid
+        raw_starts = [(ROWS-1, 0), (0, COLS-1), (ROWS-1, COLS-2)]
+        self.pursuer_starts = [list(ps) if self.maze.is_walkable(ps) else [1, COLS-2]
+                               for ps in raw_starts[:self.num_pursuers]]
+        self.powerup_map = place_objects(
+            self.grid, ROWS, COLS,
+            start=self.maze.start, goal=self.maze.goal,
+            pursuer_starts=[tuple(p) for p in self.pursuer_starts],
+            num_traps=12, num_powerups=8, num_mud=10, num_water=8, num_road=6,
+            seed=random.randint(0, 99999))
+        self.agent_pos   = list(self.maze.start)
+        self.goal_pos    = list(self.maze.goal)
+        self.pursuer_pos = [list(p) for p in self.pursuer_starts]
+        self.agent_anim   = SmoothPos(*self.agent_pos)
+        self.pursuer_anim = [SmoothPos(*p) for p in self.pursuer_pos]
+        self.mouth_angle  = 0; self.mouth_open = True; self.facing = 0
+        self.agent_status   = AgentStatus()
+        self.pursuer_status = [PursuerStatus() for _ in self.pursuer_starts]
+        self.seen = set(); self._update_fog(self.agent_pos)
+        self.lrta_h = {}; self.agent_path = []
+        self.steps = 0; self.wall_shifts = 0; self.nodes_exp = 0; self.score = 0
+        self.game_over = False; self.outcome = ""
+        self.particles = []; self.flash_msgs = []; self.wall_anims = []; self.tick_acc = 0
+        self.go_screen = None; self.screen_mode = SCREEN_GAME
+
+    def _update_fog(self, pos):
+        r, c   = pos
+        radius = ROWS if self.agent_status.full_reveal() else FOG_RADIUS
+        for dr in range(-radius, radius + 1):
+            for dc in range(-radius, radius + 1):
+                if abs(dr) + abs(dc) <= radius:
+                    nr, nc = r + dr, c + dc
+                    if 0 <= nr < ROWS and 0 <= nc < COLS:
+                        self.seen.add((nr, nc))
+
+    def _visible(self, pos):
+        if not self.fog_of_war or self.agent_status.full_reveal(): return True
+        ar, ac = self.agent_pos
+        return abs(pos[0] - ar) + abs(pos[1] - ac) <= FOG_RADIUS
+
+    def _walkable(self, pos):
+        r, c = pos
+        return 0 <= r < ROWS and 0 <= c < COLS and self.grid[r][c] != WALL
+
+    def _neighbors(self, pos):
+        r, c = pos
+        return [[r+dr, c+dc] for dr, dc in [(-1,0),(1,0),(0,-1),(0,1)]
+                if self._walkable([r+dr, c+dc])]
+
+    def _belief_neighbors(self, pos):
+        r, c = pos
+        out = []
+        for dr, dc in [(-1,0),(1,0),(0,-1),(0,1)]:
+            nr, nc = r+dr, c+dc
+            if 0 <= nr < ROWS and 0 <= nc < COLS:
+                if (nr, nc) not in self.seen or self.grid[nr][nc] != WALL:
+                    out.append([nr, nc])
+        return out
+
+    def _manhattan(self, a, b): return abs(a[0]-b[0]) + abs(a[1]-b[1])
+
+    def _astar(self, start, goal, belief=True):
+        h = lambda p: self._manhattan(p, goal)
+        ctr = 0; heap = [(h(start), 0, ctr, start, [start])]; vis = {}
+        while heap:
+            f, g, _, cur, path = heapq.heappop(heap)
+            k = (cur[0], cur[1])
+            if vis.get(k, 9999) <= g: continue
+            vis[k] = g
+            if cur[0] == goal[0] and cur[1] == goal[1]:
+                self.nodes_exp += len(vis); return path
+            for n in (self._belief_neighbors(cur) if belief else self._neighbors(cur)):
+                ctr += 1
+                heapq.heappush(heap, (g+1+h(n), g+1, ctr, n, path+[n]))
+        return None
+
+    def _lrta_step(self, pos):
+        def hget(p):
+            k = (p[0], p[1])
+            if k not in self.lrta_h: self.lrta_h[k] = self._manhattan(p, self.goal_pos)
+            return self.lrta_h[k]
+        nb = self._belief_neighbors(pos)
+        if not nb: return pos
+        mc = min(1 + hget(n) for n in nb)
+        self.lrta_h[(pos[0], pos[1])] = max(hget(pos), mc)
+        return min(nb, key=lambda n: 1 + hget(n))
+
+    def _minimax_step(self, pos, p_positions, depth=3, ab=False):
+        def score(ap, pps, d, is_max, alpha, beta):
+            if ap[0]==self.goal_pos[0] and ap[1]==self.goal_pos[1]: return 1000
+            for pp in pps:
+                if ap[0]==pp[0] and ap[1]==pp[1]: return -1000
+            if d == 0:
+                return (-self._manhattan(ap, self.goal_pos)*10 +
+                        min(self._manhattan(ap, pp) for pp in pps)*5)
+            if is_max:
+                best = -math.inf
+                for n in (self._neighbors(ap) or [ap]):
+                    v = score(n, pps, d-1, False, alpha, beta); best = max(best, v)
+                    if ab: alpha = max(alpha, best)
+                    if ab and best >= beta: break
+                return best
+            else:
+                best = math.inf
+                for n in (self._neighbors(pps[0]) or [pps[0]]):
+                    v = score(ap, [n]+pps[1:], d-1, True, alpha, beta); best = min(best, v)
+                    if ab: beta = min(beta, best)
+                    if ab and best <= alpha: break
+                return best
+        moves = self._neighbors(pos)
+        if not moves: return pos
+        self.nodes_exp += len(moves) * (4 ** depth)
+        return max(moves, key=lambda n: score(n, p_positions, depth-1, False, -math.inf, math.inf))
+
+    def _pursuer_step(self, pp, idx):
+        nb = self._neighbors(pp)
+        if not nb: return pp
+        if self.pursuer_strategy == "random": return random.choice(nb)
+        if self.pursuer_strategy == "greedy":
+            return min(nb, key=lambda n: self._manhattan(n, self.agent_pos))
+        if self.pursuer_strategy == "beam":
+            # temporary approximation
+            path = self._astar(pp, self.agent_pos, belief=False)
+            return path[1] if path and len(path) > 1 else nb[0]
+        path = self._astar(pp, self.agent_pos, belief=False)
+        return path[1] if path and len(path) > 1 else nb[0]
+
+    def tick(self):
+        if self.game_over: return
+        if self.dynamic:
+            protected = {tuple(self.agent_pos), tuple(self.goal_pos)}
+            for pp in self.pursuer_pos: protected.add(tuple(pp))
+            prev_grid = [row[:] for row in self.grid]
+            shifted   = self.maze.step(protected_positions=protected)
+            if shifted:
+                self.wall_shifts += 1; self.lrta_h = {}; self.agent_path = []
+                for r in range(ROWS):
+                    for c in range(COLS):
+                        if prev_grid[r][c] != self.grid[r][c]:
+                            self.wall_anims.append(WallAnim((r, c), self.grid[r][c] == WALL))
+        self.agent_status.tick()
+        for ps in self.pursuer_status: ps.tick()
+        if not self.agent_status.is_frozen():
+            self._do_agent_move()
+            if self.agent_status.has_speed() and not self.game_over:
+                self._do_agent_move()
+        else:
+            spawn_particles(self.particles, *self.agent_anim.center(), BAD_C, 4)
+        if self.game_over: return
+        for i, pp in enumerate(self.pursuer_pos):
+            if self.pursuer_status[i].is_frozen(): continue
+            new_pp = self._pursuer_step(pp, i)
+            self.pursuer_pos[i] = new_pp
+            self.pursuer_anim[i].set_target(*new_pp)
+            if new_pp[0]==self.agent_pos[0] and new_pp[1]==self.agent_pos[1]:
+                self._end_game("CAUGHT"); return
+        if self.mouth_open:
+            self.mouth_angle = min(35, self.mouth_angle + 8)
+            if self.mouth_angle >= 35: self.mouth_open = False
+        else:
+            self.mouth_angle = max(2, self.mouth_angle - 8)
+            if self.mouth_angle <= 2: self.mouth_open = True
+        self.steps += 1
+
+    def _do_agent_move(self):
+        pos = self.agent_pos; algo = self.agent_algo
+        if algo == "manual":
+            if self.manual_dir is None:
+                return
+            dr, dc = self.manual_dir
+            self.manual_dir = None
+            new_pos = [pos[0] + dr, pos[1] + dc]
+        elif algo == "lrta":
+            new_pos = self._lrta_step(pos)
+        elif algo == "minimax":
+            new_pos = self._minimax_step(pos, self.pursuer_pos, 3, False)
+            self.agent_path = []
+        elif algo == "alpha_beta":
+            new_pos = self._minimax_step(pos, self.pursuer_pos, 4, True)
+            self.agent_path = []
+        else:
+            new_pos = pos
+        if not self._walkable(new_pos): new_pos = pos
+        if new_pos[1] > pos[1]: self.facing = 0
+        elif new_pos[1] < pos[1]: self.facing = 180
+        elif new_pos[0] > pos[0]: self.facing = 90
+        elif new_pos[0] < pos[0]: self.facing = 270
+        self.agent_pos = new_pos; self.agent_anim.set_target(*new_pos)
+        self._update_fog(new_pos)
+        if new_pos[0]==self.goal_pos[0] and new_pos[1]==self.goal_pos[1]:
+            self.score += 500; self._end_game("GOAL!"); return
+        cell = self.grid[new_pos[0]][new_pos[1]]
+        if cell == TRAP:
+            if self.agent_status.apply_trap():
+                self._flash("TRAP!  frozen 3 turns", BAD_C)
+                spawn_particles(self.particles, *self.agent_anim.center(), TRAP_C, 14)
+                self._play("trap")
+            else:
+                self._flash("Shield blocked the trap!", GOOD_C)
+        elif cell == POWERUP:
+            pu = self.powerup_map.get((new_pos[0], new_pos[1]), PU_SPEED)
+            freeze = self.agent_status.apply_powerup(pu)
+            self.grid[new_pos[0]][new_pos[1]] = OPEN
+            self.powerup_map.pop((new_pos[0], new_pos[1]), None)
+            self.score += 50
+            if freeze:
+                for ps in self.pursuer_status: ps.freeze(5)
+                self._flash("FREEZE!  pursuers frozen 5 turns", (100, 180, 255))
+            else:
+                self._flash(f"Power-up: {pu.upper()}!", POWER_C)
+            spawn_particles(self.particles, *self.agent_anim.center(), POWER_C, 18)
+            self._play("powerup")
+        for pp in self.pursuer_pos:
+            if new_pos[0]==pp[0] and new_pos[1]==pp[1]:
+                self._end_game("CAUGHT"); return
+
+    def _end_game(self, outcome):
+        self.game_over = True; self.outcome = outcome
+        col = GOOD_C if outcome == "GOAL!" else BAD_C
+        spawn_particles(self.particles, *self.agent_anim.center(), col, 30)
+        self._play("win" if outcome == "GOAL!" else "lose")
+        self.game_state_data = {
+            "steps": self.steps,
+            "explored": len(self.seen) * 100 / (ROWS * COLS),
+            "shifts": self.wall_shifts, "score": self.score}
+        HIGH_SCORES.append((self.score, self.agent_algo))
+        HIGH_SCORES.sort(key=lambda x: -x[0])
+
+    def _flash(self, text, color):
+        self.flash_msgs.append(FlashMsg(text, color))
+
+    def draw_game(self):
+        self.t += 1; self.screen.fill(DARK_BG)
+        self._draw_maze(); self._draw_wall_anims(); self._draw_particles()
+        self._draw_agents(); self._draw_panel(); self._draw_bottom_bar()
+        self._draw_flash_msgs()
+        if self.game_over:
+            if self.go_screen is None:
+                self.go_screen = GameOverScreen(self.screen, self.fonts,
+                                                self.outcome, self.game_state_data)
+            self.go_screen.draw()
+
+    def _draw_maze(self):
+        for r in range(ROWS):
+            for c in range(COLS):
+                x, y = c * CELL, r * CELL; pos = (r, c)
+                cell = self.grid[r][c]; in_seen = pos in self.seen; in_vis = self._visible(pos)
+                if self.fog_of_war and not in_seen:
+                    pygame.draw.rect(self.screen, (2, 2, 8), (x, y, CELL, CELL)); continue
+                if cell == WALL:
+                    draw_wall_cell(self.screen, x, y, CELL, self.t)
+                    if self.fog_of_war and not in_vis:
+                        dim = pygame.Surface((CELL, CELL), pygame.SRCALPHA)
+                        dim.fill((0, 0, 0, 160)); self.screen.blit(dim, (x, y))
+                    continue
+                floor_col = {MUD: MUD_C, WATER: WATER_C, ROAD: ROAD_C}.get(cell, (12, 12, 35))
+                pygame.draw.rect(self.screen, floor_col, (x, y, CELL, CELL))
+                if self.fog_of_war and not in_vis:
+                    dim = pygame.Surface((CELL, CELL), pygame.SRCALPHA)
+                    dim.fill((0, 0, 0, 140)); self.screen.blit(dim, (x, y)); continue
+                cx_, cy_ = x + CELL // 2, y + CELL // 2
+                if cell == TRAP:
+                    r2 = CELL // 3
+                    pygame.draw.line(self.screen, TRAP_C, (cx_-r2, cy_-r2), (cx_+r2, cy_+r2), 3)
+                    pygame.draw.line(self.screen, TRAP_C, (cx_+r2, cy_-r2), (cx_-r2, cy_+r2), 3)
+                    pygame.gfxdraw.aacircle(self.screen, cx_, cy_, r2+2, (*TRAP_C, 120))
+                elif cell == POWERUP:
+                    draw_powerup_pellet(self.screen, cx_, cy_, CELL // 5, self.t)
+                    pu = self.powerup_map.get(pos, PU_SPEED)
+                    lbl = {"reveal":"R","speed":"S","shield":"X","freeze":"F"}.get(pu, "P")
+                    s = self.fonts["sm"].render(lbl, True, (20, 20, 20))
+                    self.screen.blit(s, (cx_ - s.get_width()//2, cy_ - s.get_height()//2))
+                elif cell == MUD:
+                    s = self.fonts["sm"].render("~", True, (150, 110, 50))
+                    self.screen.blit(s, (cx_ - s.get_width()//2, cy_ - s.get_height()//2))
+                elif cell == WATER:
+                    s = self.fonts["sm"].render("~", True, (80, 150, 255))
+                    self.screen.blit(s, (cx_ - s.get_width()//2, cy_ - s.get_height()//2))
+                elif cell == ROAD:
+                    pygame.draw.line(self.screen, (60, 120, 60), (cx_, y+4), (cx_, y+CELL-4), 2)
+                else:
+                    draw_pellet(self.screen, cx_, cy_, 3)
+        gr, gc = self.maze.goal; gx, gy = gc * CELL, gr * CELL
+        pulse = int(3 * math.sin(self.t / 20))
+        pygame.draw.rect(self.screen, GOAL_C,
+                         (gx+4-pulse, gy+4-pulse, CELL-8+pulse*2, CELL-8+pulse*2), border_radius=6)
+        s = self.fonts["md"].render("G", True, (10, 30, 10))
+        self.screen.blit(s, (gx + CELL//2 - s.get_width()//2, gy + CELL//2 - s.get_height()//2))
+        if self.agent_path and len(self.agent_path) > 1:
+            for p in self.agent_path[1:min(len(self.agent_path), 12)]:
+                if self._visible(p):
+                    pygame.gfxdraw.filled_circle(self.screen,
+                        p[1]*CELL+CELL//2, p[0]*CELL+CELL//2, 3, (60, 180, 255, 80))
+
+    def _draw_wall_anims(self):
+        alive = []
+        for wa in self.wall_anims:
+            wa.tick(); wa.draw(self.screen, self.t)
+            if wa.alive(): alive.append(wa)
+        self.wall_anims = alive
+
+    def _draw_particles(self):
+        alive = []
+        for p in self.particles:
+            p.update(); p.draw(self.screen)
+            if p.alive(): alive.append(p)
+        self.particles = alive
+
+    def _draw_agents(self):
+        self.agent_anim.update()
+        for pa in self.pursuer_anim: pa.update()
+        for i, pa in enumerate(self.pursuer_anim):
+            if not self._visible(self.pursuer_pos[i]) and self.fog_of_war \
+                    and not self.agent_status.full_reveal(): continue
+            draw_ghost(self.screen, *pa.center(), CELL//2 - 2,
+                       GHOST_COLS[i % len(GHOST_COLS)],
+                       self.pursuer_status[i].is_frozen(),
+                       self.pursuer_status[i].is_frozen())
+        draw_pacman(self.screen, *self.agent_anim.center(),
+                    CELL//2 - 3, self.mouth_angle, self.facing)
+
+    def _draw_panel(self):
+        px = MAZE_W
+        pygame.draw.rect(self.screen, PANEL_BG, (px, 0, PANEL_W, MAZE_H))
+        pygame.draw.line(self.screen, WALL_BRIGHT, (px, 0), (px, MAZE_H), 1)
+        y = 14
+
+        def txt(t, col=TEXT_W, f="md", indent=14):
+            nonlocal y
+            s = self.fonts[f].render(t, True, col)
+            self.screen.blit(s, (px + indent, y)); y += s.get_height() + 5
+
+        def div():
+            nonlocal y
+            pygame.draw.line(self.screen, (30, 35, 80),
+                             (px+8, y+2), (px+PANEL_W-8, y+2), 1); y += 10
+
+        mouth = int(25 * abs(math.sin(self.t / 15)))
+        draw_pacman(self.screen, px + 20, y + 10, 10, mouth, 0)
+        s = self.fonts["lg"].render("MAZE NAVIGATOR", True, PACMAN_Y)
+        self.screen.blit(s, (px + 38, y)); y += 26; div()
+        txt(f"algo    {ALGO_NAMES.get(self.agent_algo,'')}", TEXT_DIM)
+        txt(f"pursuers  {PURSUER_NAMES.get(self.pursuer_strategy, self.pursuer_strategy)} x{self.num_pursuers}",
+            TEXT_DIM)
+        txt(f"dynamic {'ON' if self.dynamic else 'OFF'}", TEXT_DIM)
+        txt(f"fog     {'ON' if self.fog_of_war else 'OFF'}", TEXT_DIM); div()
+        txt("STATS", ACCENT, "lg")
+        txt(f"steps      {self.steps}")
+        txt(f"explored   {len(self.seen)*100//(ROWS*COLS)}%")
+        txt(f"shifts     {self.wall_shifts}")
+        txt(f"nodes      {self.nodes_exp}")
+        txt(f"score      {self.score}", PACMAN_Y); div()
+        txt("EFFECTS", ACCENT, "lg")
+        effects = self.agent_status.active_effects()
+        for e in (effects or ["none"]):
+            col = BAD_C if "FROZEN" in e else WARN_C if "SPEED" in e else (GOOD_C if e != "none" else TEXT_DIM)
+            txt(f"  {e}", col)
+        div()
+        txt("KEYS", ACCENT, "lg")
+        for line in ["SPACE  pause", "R      new maze", "1-4    algorithm",
+                     "+/-    speed", "F fog  D walls", "arrows manual", "ESC    quit"]:
+            txt(line, TEXT_DIM, "sm")
+
+    def _draw_bottom_bar(self):
+        y = MAZE_H
+        pygame.draw.rect(self.screen, PANEL_BG, (0, y, WIN_W, 70))
+        pygame.draw.line(self.screen, WALL_BRIGHT, (0, y), (WIN_W, y), 1)
+        status = "PAUSED" if self.paused else \
+                 ("GAME OVER — " + self.outcome if self.game_over else "RUNNING")
+        scol = WARN_C if self.paused else (BAD_C if self.game_over and self.outcome=="CAUGHT"
+                else GOOD_C if self.game_over else ACCENT)
+        s1 = self.fonts["md"].render(
+            f"{ALGO_NAMES.get(self.agent_algo, self.agent_algo)}  vs  "
+            f"{PURSUER_NAMES.get(self.pursuer_strategy, self.pursuer_strategy)} pursuers",
+            True, TEXT_DIM
+        )
+        s2 = self.fonts["lg"].render(status, True, scol)
+        s3 = self.fonts["sm"].render(f"speed {self.speed}x", True, TEXT_DIM)
+        self.screen.blit(s1, (12, y + 8))
+        self.screen.blit(s2, (12, y + 30))
+        self.screen.blit(s3, (MAZE_W - 80, y + 8))
+
+    def _draw_flash_msgs(self):
+        alive = []; yy = MAZE_H // 2 - 60
+        for fm in self.flash_msgs:
+            fm.tick()
+            if fm.alive():
+                s = self.fonts["lg"].render(fm.text, True, fm.color)
+                self.screen.blit(s, (MAZE_W//2 - s.get_width()//2, yy))
+                yy += 26; alive.append(fm)
+        self.flash_msgs = alive
+
+    def run(self):
+        FPS = 60
+        while True:
+            dt = self.clock.tick(FPS); self.t += 1
+            for event in pygame.event.get():
+                if event.type == pygame.QUIT:
+                    pygame.quit(); sys.exit()
+                if self.screen_mode == SCREEN_START:
+                    result = self.start_screen.handle(event)
+                    if result == "start":
+                        self.agent_algo = self.start_screen.algo
+                        self.pursuer_strategy = self.start_screen.pursuer
+                        self.num_pursuers = self.start_screen.pursuers
+                        self.dynamic = self.start_screen.dynamic
+                        self.fog_of_war = self.start_screen.fog
+                        self.reset()
+                elif self.screen_mode == SCREEN_GAME:
+                    if event.type == pygame.KEYDOWN:
+                        k = event.key
+                        if k in (pygame.K_q, pygame.K_ESCAPE): pygame.quit(); sys.exit()
+                        elif k == pygame.K_SPACE: self.paused = not self.paused
+                        elif k == pygame.K_r: self.reset()
+                        elif k == pygame.K_1:
+                            self.agent_algo = "lrta"; self.lrta_h = {}; self.agent_path = []
+                        elif k == pygame.K_2:
+                            self.agent_algo = "minimax"; self.agent_path = []
+                        elif k == pygame.K_3:
+                            self.agent_algo = "alpha_beta"; self.agent_path = []
+                        elif k == pygame.K_4:
+                            self.agent_algo = "manual"; self.agent_path = []
+                        elif k == pygame.K_EQUALS: self.speed = min(20, self.speed + 1)
+                        elif k == pygame.K_MINUS:  self.speed = max(1,  self.speed - 1)
+                        elif k == pygame.K_f: self.fog_of_war = not self.fog_of_war
+                        elif k == pygame.K_d: self.dynamic = not self.dynamic; self.reset()
+                        elif k == pygame.K_UP:    self.manual_dir = (-1,  0)
+                        elif k == pygame.K_DOWN:  self.manual_dir = ( 1,  0)
+                        elif k == pygame.K_LEFT:  self.manual_dir = ( 0, -1)
+                        elif k == pygame.K_RIGHT: self.manual_dir = ( 0,  1)
+                elif self.screen_mode == SCREEN_GAMEOVER and self.go_screen:
+                    result = self.go_screen.handle(event)
+                    if result == "reset": self.reset()
+                    elif result == "start":
+                        self.screen_mode = SCREEN_START
+                        self.start_screen = StartScreen(self.screen, self.fonts)
+                    elif result == "quit": pygame.quit(); sys.exit()
+            if self.screen_mode == SCREEN_GAME and not self.paused and not self.game_over:
+                self.tick_acc += dt
+                ms = 1000 // max(1, self.speed)
+                while self.tick_acc >= ms:
+                    self.tick(); self.tick_acc -= ms
+                    if self.game_over: self.screen_mode = SCREEN_GAMEOVER; break
+            if self.screen_mode == SCREEN_START:
+                self.start_screen.draw()
+            elif self.screen_mode in (SCREEN_GAME, SCREEN_GAMEOVER):
+                self.draw_game()
+            pygame.display.flip()
+
+
+def launch(agent_algo="lrta", pursuer_strategy="greedy",
+           num_pursuers=2, dynamic=True, fog=True):
+    game = VisualGame(agent_algo=agent_algo, pursuer_strategy=pursuer_strategy,
+                      num_pursuers=num_pursuers, dynamic=dynamic, fog_of_war=fog)
+    game.run()
+
+
+if __name__ == "__main__":
+    launch()

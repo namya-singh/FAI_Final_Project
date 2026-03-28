@@ -1,0 +1,13 @@
+mode,agent,pursuer,size,density,seed,dynamic,visibility_radius,outcome,win,steps,nodes_expanded,time_ms,cells_explored,wall_shifts,phase_switch_step,error
+partial,online_astar,random,11,0.25,16250,False,4,pursuer_win,0,6,,2.1597,0.405,0,,
+partial,online_astar,greedy,11,0.25,16250,False,4,pursuer_win,0,4,,1.6842,0.3306,0,,
+partial,online_astar,beam,11,0.25,16250,False,4,pursuer_win,0,4,,1.6595,0.3306,0,,
+partial,online_astar,astar,11,0.25,16250,False,4,pursuer_win,0,4,,1.6629,0.3306,0,,
+partial,online_lrta,random,11,0.25,16250,False,4,pursuer_win,0,6,,0.0561,0.405,0,,
+partial,online_lrta,greedy,11,0.25,16250,False,4,pursuer_win,0,4,,0.037,0.3306,0,,
+partial,online_lrta,beam,11,0.25,16250,False,4,pursuer_win,0,4,,0.0409,0.3306,0,,
+partial,online_lrta,astar,11,0.25,16250,False,4,pursuer_win,0,4,,0.0404,0.3306,0,,
+partial,exploration,random,11,0.25,16250,False,4,pursuer_win,0,6,,0.1178,0.405,0,,
+partial,exploration,greedy,11,0.25,16250,False,4,pursuer_win,0,4,,0.0999,0.3306,0,,
+partial,exploration,beam,11,0.25,16250,False,4,pursuer_win,0,4,,0.1034,0.3306,0,,
+partial,exploration,astar,11,0.25,16250,False,4,pursuer_win,0,4,,0.1016,0.3306,0,,

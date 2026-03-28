@@ -388,35 +388,38 @@ class PursuerAI:
         elif self.strategy == "greedy":
             return min(moving, key=lambda m: _manhattan(m[1], game_state.agent_pos))
 
+
         elif self.strategy == "astar":
-            # Build a temp goal-swapped maze so A* targets the agent
             from maze import Maze
-            temp = Maze(
-                game_state.maze.grid,
-                game_state.pursuer_pos,
-                game_state.agent_pos,
-            )
+            pursuer_pos = tuple(game_state.pursuer_pos)
+            agent_pos = tuple(game_state.agent_pos)
+            grid_copy = [row[:] for row in game_state.maze.grid]
+            grid_copy[pursuer_pos[0]][pursuer_pos[1]] = Maze.OPEN
+            grid_copy[agent_pos[0]][agent_pos[1]] = Maze.OPEN
+            temp = Maze(grid_copy, pursuer_pos, agent_pos)
             result = astar(temp, "manhattan")
             if result.success and len(result.actions) > 0:
                 first_action = result.actions[0]
                 for a, p in moving:
                     if a == first_action:
                         return (a, p)
-            # Fallback to greedy
             return min(moving, key=lambda m: _manhattan(m[1], game_state.agent_pos))
+
 
         elif self.strategy == "beam":
             from maze import Maze
-            temp = Maze(
-                game_state.maze.grid,
-                game_state.pursuer_pos,
-                game_state.agent_pos,
-            )
+            pursuer_pos = tuple(game_state.pursuer_pos)
+            agent_pos = tuple(game_state.agent_pos)
+            grid_copy = [row[:] for row in game_state.maze.grid]
+            grid_copy[pursuer_pos[0]][pursuer_pos[1]] = Maze.OPEN
+            grid_copy[agent_pos[0]][agent_pos[1]] = Maze.OPEN
+            temp = Maze(grid_copy, pursuer_pos, agent_pos)
             result = beam_search(
                 maze=temp,
                 beam_width=self.beam_width,
                 heuristic_name="manhattan",
-                start=game_state.pursuer_pos)
+                start=pursuer_pos
+            )
             if result.success and len(result.actions) > 0:
                 first_action = result.actions[0]
                 for a, p in moving:
