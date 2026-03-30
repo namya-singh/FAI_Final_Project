@@ -89,6 +89,7 @@ def simulate_game(maze, agent_algo, pursuer_strategy,
         "algorithm"     : agent_algo,
         "pursuer"       : pursuer_strategy,
         "dynamic"       : dynamic,
+        "wall_shifts"   : 0,
         "steps"         : 0,
         "outcome"       : None,
         "total_nodes"   : 0,
@@ -108,6 +109,8 @@ def simulate_game(maze, agent_algo, pursuer_strategy,
         if dynamic:
             protected = {state.agent_pos, state.pursuer_pos}
             shifted = active_maze.step(protected_positions=protected)
+            if shifted:
+                stats["wall_shifts"] += 1
 
         # agent move
         t0 = time.perf_counter()
@@ -258,7 +261,7 @@ def main():
     parser.add_argument("--seed",     type=int,   default=7)
     parser.add_argument("--algo",     type=str,   default=None,
                         choices=["minimax","alpha_beta","expectimax","lrta",
-                                 "hill_climb","beam_search","astar","alpha_beta","manual"])
+                                 "hill_climb","beam_search","alpha_beta"])
     parser.add_argument("--pursuer",  type=str,   default="greedy",
                         choices=["random","greedy","astar", "beam"])
     parser.add_argument("--dynamic",  action="store_true")
@@ -276,7 +279,7 @@ def main():
     if args.visual:
         from visual_game import launch
         launch(
-            agent_algo       = args.algo or "astar",
+            agent_algo       = args.algo or "lrta",
             pursuer_strategy = args.pursuer,
             num_pursuers     = min(3, max(1, args.pursuers)),
             dynamic          = args.dynamic,

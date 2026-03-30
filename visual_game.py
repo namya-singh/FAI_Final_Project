@@ -12,6 +12,9 @@ import heapq
 import random
 from collections import deque
 
+from search import hill_climb, beam_search
+from adversarial_search import expectimax
+from game_state import GameState, Turn
 from maze         import Maze, DynamicMaze
 from game_objects import (
     OPEN, WALL, TRAP, POWERUP, MUD, WATER, ROAD,
@@ -46,8 +49,8 @@ WATER_C     = (30,   90, 200)
 ROAD_C      = (30,   80,  40)
 GOAL_C      = (60,  240, 100)
 PANEL_BG    = (8,    8,   25)
-TEXT_W      = (220, 225, 255)
-TEXT_DIM    = (100, 105, 160)
+TEXT_W      = (245, 250, 255)
+TEXT_DIM    = (170, 185, 235)
 ACCENT      = (60,  160, 255)
 GOOD_C      = (60,  220, 100)
 BAD_C       = (220,  60,  60)
@@ -57,6 +60,9 @@ ALGO_NAMES = {
     "minimax": "Minimax",
     "alpha_beta": "Alpha-Beta",
     "lrta": "LRTA*",
+    "expectimax": "Expectimax",
+    "hill_climb": "Hill Climb",
+    "beam_search": "Beam Search",
     "manual": "Manual",
 }
 
@@ -66,6 +72,24 @@ PURSUER_NAMES = {
     "beam": "Beam Search",
     "astar": "A*",
 }
+
+AGENT_ORDER = [
+    "lrta",
+    "minimax",
+    "alpha_beta",
+    "expectimax",
+    "hill_climb",
+    "beam_search",
+    "manual",
+]
+
+PURSUER_ORDER = [
+    "random",
+    "greedy",
+    "beam",
+    "astar",
+]
+
 
 SCREEN_START    = "start"
 SCREEN_GAME     = "game"
@@ -218,7 +242,7 @@ class StartScreen:
         self.screen = screen; self.fonts = fonts
         self.algo = "lrta"; self.pursuer = "greedy"
         self.pursuers = 2; self.dynamic = True; self.fog = True
-        self.algo_opts = ["lrta", "minimax", "alpha_beta", "manual"]
+        self.algo_opts = ["lrta", "minimax", "alpha_beta", "expectimax", "hill_climb", "beam_search", "manual"]
         self.pursuer_opts = ["random", "greedy", "beam", "astar"]
         self.algo_idx = 0; self.pursuer_idx = 1; self.t = 0
         self.dots = [{"x": random.randint(0, WIN_W), "y": random.randint(0, WIN_H),
@@ -266,32 +290,34 @@ class StartScreen:
             "adversarial search  |  partial observability  |  dynamic maze", True, TEXT_DIM)
         self.screen.blit(sub, (WIN_W // 2 - sub.get_width() // 2, cy))
         cy += 50
-        bw, bh = 480, 230
+        bw, bh = 560, 300
         bx = WIN_W // 2 - bw // 2
         pygame.draw.rect(self.screen, (12, 12, 40), (bx, cy, bw, bh), border_radius=12)
         pygame.draw.rect(self.screen, WALL_BRIGHT, (bx, cy, bw, bh), 2, border_radius=12)
 
         def row(label, value, yy, highlight=False):
-            ls = self.fonts["md"].render(label, True, TEXT_DIM)
-            vs = self.fonts["md"].render(value, True, PACMAN_Y if highlight else TEXT_W)
-            self.screen.blit(ls, (bx + 30, cy + yy))
-            self.screen.blit(vs, (bx + bw - vs.get_width() - 30, cy + yy))
+            ls = self.fonts["md"].render(label, True, TEXT_W)
+            vs = self.fonts["md"].render(value, True, PACMAN_Y if highlight else ACCENT)
+            self.screen.blit(ls, (bx + 34, cy + yy))
+            self.screen.blit(vs, (bx + bw - vs.get_width() - 34, cy + yy))
 
-        row("agent algorithm",   f"< {ALGO_NAMES.get(self.algo, self.algo)} >", 22, True)
-        row("pursuer strategy",  f"< {PURSUER_NAMES.get(self.pursuer, self.pursuer)} >", 55, True)
-        row("number of pursuers", f"  {self.pursuers}  (press 1/2/3)", 88)
-        row("dynamic walls", "ON  (D to toggle)" if self.dynamic else "OFF (D to toggle)", 121)
-        row("fog of war",    "ON  (F to toggle)" if self.fog     else "OFF (F to toggle)", 154)
+        row("agent algorithm", f"< {ALGO_NAMES.get(self.algo, self.algo)} >", 22, True)
+        row("pursuer strategy", f"< {PURSUER_NAMES.get(self.pursuer, self.pursuer)} >", 58, True)
+        row("number of pursuers", f"{self.pursuers}  (press 1/2/3)", 94)
+        row("dynamic walls", "ON  (D to toggle)" if self.dynamic else "OFF (D to toggle)", 130)
+        row("fog of war", "ON  (F to toggle)" if self.fog else "OFF (F to toggle)", 166)
+        row("split view", "toggle in game (B)", 202)
         hint = self.fonts["sm"].render(
             "< / > change agent     up/down change pursuer     ENTER to start", True, TEXT_DIM)
-        self.screen.blit(hint, (WIN_W // 2 - hint.get_width() // 2, cy + bh - 28))
-        cy2 = cy + bh + 25
+        self.screen.blit(hint, (WIN_W // 2 - hint.get_width() // 2, cy + bh + 20))
+        cy2 = cy + bh + 40
         for i, line in enumerate([
-            "in-game:  SPACE pause    R new maze    1-4 switch algorithm",
-            "          +/- speed      F fog         D dynamic walls    ESC quit",
+            "SPACE pause   |   R reset maze   |   1-7 switch agent",
+            "Z/X/C/V pursuer   |   +/- speed   |   F fog toggle",
+            "D dynamic walls   |   B split view   |   ESC quit",
         ]):
-            s = self.fonts["sm"].render(line, True, TEXT_DIM)
-            self.screen.blit(s, (WIN_W // 2 - s.get_width() // 2, cy2 + i * 20))
+            s = self.fonts["sm"].render(line, True, TEXT_W)
+            self.screen.blit(s, (WIN_W // 2 - s.get_width() // 2, cy2 + i * 24))
         if HIGH_SCORES:
             cy3 = cy2 + 55
             hs = self.fonts["lg"].render("HIGH SCORES", True, ACCENT)
@@ -326,7 +352,7 @@ class GameOverScreen:
         self.screen.blit(title, (WIN_W // 2 - title.get_width() // 2, WIN_H // 2 - 110 + bounce))
         sub = self.fonts["lg"].render("WELL PLAYED" if won else "GAME OVER", True, PACMAN_Y)
         self.screen.blit(sub, (WIN_W // 2 - sub.get_width() // 2, WIN_H // 2 - 65))
-        bw, bh = 400, 160
+        bw, bh = 580, 280
         bx = WIN_W // 2 - bw // 2
         by = WIN_H // 2 - 30
         pygame.draw.rect(self.screen, (10, 10, 35), (bx, by, bw, bh), border_radius=10)
@@ -363,14 +389,15 @@ class VisualGame:
         self.screen = pygame.display.set_mode((WIN_W, WIN_H))
         self.clock  = pygame.time.Clock()
         self.fonts  = {
-            "xl": pygame.font.SysFont("monospace", 24, bold=True),
-            "lg": pygame.font.SysFont("monospace", 16, bold=True),
-            "md": pygame.font.SysFont("monospace", 13),
-            "sm": pygame.font.SysFont("monospace", 11),
+            "xl": pygame.font.SysFont("monospace", 32, bold=True),
+            "lg": pygame.font.SysFont("monospace", 24, bold=True),
+            "md": pygame.font.SysFont("monospace", 20, bold=True),
+            "sm": pygame.font.SysFont("monospace", 15, bold=True),
         }
         self.agent_algo = agent_algo; self.pursuer_strategy = pursuer_strategy
         self.num_pursuers = num_pursuers; self.dynamic = dynamic; self.fog_of_war = fog_of_war
         self.speed = 7; self.paused = False; self.tick_acc = 0; self.t = 0
+        self.show_belief_split = False
         self.manual_dir = None; self.screen_mode = SCREEN_START
         self.start_screen = StartScreen(self.screen, self.fonts)
         self.go_screen = None; self.game_state_data = {}
@@ -425,6 +452,12 @@ class VisualGame:
         self.game_over = False; self.outcome = ""
         self.particles = []; self.flash_msgs = []; self.wall_anims = []; self.tick_acc = 0
         self.go_screen = None; self.screen_mode = SCREEN_GAME
+        self.agent_history = deque(maxlen=10)
+        self.pursuer_history = deque(maxlen=10)
+        self.agent_stuck_count = 0
+        self.pursuer_stuck_count = 0
+        self.agent_history.append(tuple(self.agent_pos))
+        self.pursuer_history.append(tuple(tuple(p) for p in self.pursuer_pos))
 
     def _update_fog(self, pos):
         r, c   = pos
@@ -461,6 +494,48 @@ class VisualGame:
         return out
 
     def _manhattan(self, a, b): return abs(a[0]-b[0]) + abs(a[1]-b[1])
+
+    def _planning_maze(self, start=None, goal=None):
+        """
+        Builds a temporary Maze for search algorithms.
+        All non-wall gameplay cells are treated as OPEN so that
+        traps, power-ups, mud, water, and road remain traversable.
+        """
+        s = tuple(start or self.agent_pos)
+        g = tuple(goal or self.goal_pos)
+
+        grid_copy = []
+        for row in self.grid:
+            grid_copy.append([Maze.WALL if cell == WALL else Maze.OPEN for cell in row])
+
+        grid_copy[s[0]][s[1]] = Maze.OPEN
+        grid_copy[g[0]][g[1]] = Maze.OPEN
+        return Maze(grid_copy, s, g)
+
+    def _nearest_pursuer(self):
+        return min(self.pursuer_pos, key=lambda pp: self._manhattan(self.agent_pos, pp))
+
+    def _make_adv_state(self):
+        """
+        Builds a lightweight GameState for adversarial-search algorithms.
+        Uses the nearest pursuer as the adversarial opponent in visual mode.
+        """
+        pursuer = tuple(self._nearest_pursuer())
+        temp_maze = self._planning_maze(start=self.agent_pos, goal=self.goal_pos)
+        return GameState(
+            maze=temp_maze,
+            agent_pos=tuple(self.agent_pos),
+            pursuer_pos=pursuer,
+            turn=Turn.AGENT,
+            step=0,
+            step_limit=50,
+        )
+
+    def _greedy_goal_fallback(self, pos):
+        nb = self._neighbors(pos)
+        if not nb:
+            return pos
+        return min(nb, key=lambda n: self._manhattan(n, self.goal_pos))
 
     def _astar(self, start, goal, belief=True):
         h = lambda p: self._manhattan(p, goal)
@@ -566,32 +641,97 @@ class VisualGame:
         self.steps += 1
 
     def _do_agent_move(self):
-        pos = self.agent_pos; algo = self.agent_algo
+        pos = self.agent_pos
+        algo = self.agent_algo
+
         if algo == "manual":
             if self.manual_dir is None:
                 return
             dr, dc = self.manual_dir
             self.manual_dir = None
             new_pos = [pos[0] + dr, pos[1] + dc]
+            self.agent_path = []
+
         elif algo == "lrta":
             new_pos = self._lrta_step(pos)
+            self.agent_path = []
+
         elif algo == "minimax":
             new_pos = self._minimax_step(pos, self.pursuer_pos, 3, False)
             self.agent_path = []
+
         elif algo == "alpha_beta":
             new_pos = self._minimax_step(pos, self.pursuer_pos, 4, True)
             self.agent_path = []
+
+        elif algo == "expectimax":
+            state = self._make_adv_state()
+            result = expectimax(state, depth_limit=4)
+            self.nodes_exp += result.nodes_expanded
+            if result.best_move_pos is not None:
+                new_pos = list(result.best_move_pos)
+            else:
+                new_pos = pos
+            self.agent_path = []
+
+        elif algo == "hill_climb":
+            temp_maze = self._planning_maze(start=pos, goal=self.goal_pos)
+            result = hill_climb(
+                temp_maze,
+                "manhattan",
+                start=tuple(pos),
+                allow_sideways=True,
+                max_sideways=6,
+            )
+            self.nodes_exp += result.nodes_expanded
+            if result.success and len(result.path) > 1:
+                new_pos = list(result.path[1])
+                self.agent_path = [list(p) for p in result.path]
+            else:
+                new_pos = self._greedy_goal_fallback(pos)
+                self.agent_path = []
+
+        elif algo == "beam_search":
+            temp_maze = self._planning_maze(start=pos, goal=self.goal_pos)
+            result = beam_search(
+                temp_maze,
+                beam_width=3,
+                heuristic_name="manhattan",
+                start=tuple(pos),
+            )
+            self.nodes_exp += result.nodes_expanded
+            if result.success and len(result.path) > 1:
+                new_pos = list(result.path[1])
+                self.agent_path = [list(p) for p in result.path]
+            else:
+                new_pos = self._greedy_goal_fallback(pos)
+                self.agent_path = []
+
         else:
             new_pos = pos
-        if not self._walkable(new_pos): new_pos = pos
-        if new_pos[1] > pos[1]: self.facing = 0
-        elif new_pos[1] < pos[1]: self.facing = 180
-        elif new_pos[0] > pos[0]: self.facing = 90
-        elif new_pos[0] < pos[0]: self.facing = 270
-        self.agent_pos = new_pos; self.agent_anim.set_target(*new_pos)
+            self.agent_path = []
+
+        if not self._walkable(new_pos):
+            new_pos = pos
+
+        if new_pos[1] > pos[1]:
+            self.facing = 0
+        elif new_pos[1] < pos[1]:
+            self.facing = 180
+        elif new_pos[0] > pos[0]:
+            self.facing = 90
+        elif new_pos[0] < pos[0]:
+            self.facing = 270
+
+        self.agent_pos = new_pos
+        self.agent_anim.set_target(*new_pos)
         self._update_fog(new_pos)
-        if new_pos[0]==self.goal_pos[0] and new_pos[1]==self.goal_pos[1]:
-            self.score += 500; self._end_game("GOAL!"); return
+
+        if new_pos[0] == self.goal_pos[0] and new_pos[1] == self.goal_pos[1]:
+            self.score += 500
+            self._end_game("GOAL!")
+            return
+
         cell = self.grid[new_pos[0]][new_pos[1]]
         if cell == TRAP:
             if self.agent_status.apply_trap():
@@ -600,6 +740,7 @@ class VisualGame:
                 self._play("trap")
             else:
                 self._flash("Shield blocked the trap!", GOOD_C)
+
         elif cell == POWERUP:
             pu = self.powerup_map.get((new_pos[0], new_pos[1]), PU_SPEED)
             freeze = self.agent_status.apply_powerup(pu)
@@ -607,15 +748,18 @@ class VisualGame:
             self.powerup_map.pop((new_pos[0], new_pos[1]), None)
             self.score += 50
             if freeze:
-                for ps in self.pursuer_status: ps.freeze(5)
+                for ps in self.pursuer_status:
+                    ps.freeze(5)
                 self._flash("FREEZE!  pursuers frozen 5 turns", (100, 180, 255))
             else:
                 self._flash(f"Power-up: {pu.upper()}!", POWER_C)
             spawn_particles(self.particles, *self.agent_anim.center(), POWER_C, 18)
             self._play("powerup")
+
         for pp in self.pursuer_pos:
-            if new_pos[0]==pp[0] and new_pos[1]==pp[1]:
-                self._end_game("CAUGHT"); return
+            if new_pos[0] == pp[0] and new_pos[1] == pp[1]:
+                self._end_game("CAUGHT")
+                return
 
     def _end_game(self, outcome):
         self.game_over = True; self.outcome = outcome
@@ -633,15 +777,152 @@ class VisualGame:
         self.flash_msgs.append(FlashMsg(text, color))
 
     def draw_game(self):
-        self.t += 1; self.screen.fill(DARK_BG)
-        self._draw_maze(); self._draw_wall_anims(); self._draw_particles()
-        self._draw_agents(); self._draw_panel(); self._draw_bottom_bar()
+        self.t += 1
+        self.screen.fill(DARK_BG)
+
+        if self.show_belief_split:
+            self._draw_split_view()
+        else:
+            self._draw_maze()
+            self._draw_wall_anims()
+            self._draw_particles()
+            self._draw_agents()
+
+        self._draw_panel()
+        self._draw_bottom_bar()
         self._draw_flash_msgs()
+
         if self.game_over:
             if self.go_screen is None:
-                self.go_screen = GameOverScreen(self.screen, self.fonts,
-                                                self.outcome, self.game_state_data)
+                self.go_screen = GameOverScreen(
+                    self.screen,
+                    self.fonts,
+                    self.outcome,
+                    self.game_state_data
+                )
             self.go_screen.draw()
+
+    def _draw_board_cell(self, surf, r, c, cell_size, show_truth, show_fog):
+        x, y = c * cell_size, r * cell_size
+        pos = (r, c)
+        cell = self.grid[r][c]
+        in_seen = pos in self.seen
+        in_vis = self._visible(pos)
+        if show_fog and not in_seen:
+            pygame.draw.rect(surf, (2, 2, 8), (x, y, cell_size, cell_size))
+            return
+        if cell == WALL:
+            pygame.draw.rect(surf, WALL_DARK, (x, y, cell_size, cell_size))
+            pygame.draw.rect(surf, WALL_BRIGHT, (x + 1, y + 1, cell_size - 2, cell_size - 2), 2)
+            if show_fog and not in_vis:
+                dim = pygame.Surface((cell_size, cell_size), pygame.SRCALPHA)
+                dim.fill((0, 0, 0, 160))
+                surf.blit(dim, (x, y))
+            return
+        floor_col = {MUD: MUD_C, WATER: WATER_C, ROAD: ROAD_C}.get(cell, (12, 12, 35))
+        pygame.draw.rect(surf, floor_col, (x, y, cell_size, cell_size))
+        if show_fog and not in_vis:
+            dim = pygame.Surface((cell_size, cell_size), pygame.SRCALPHA)
+            dim.fill((0, 0, 0, 140))
+            surf.blit(dim, (x, y))
+            return
+        cx_, cy_ = x + cell_size // 2, y + cell_size // 2
+        if cell == TRAP and show_truth:
+            r2 = cell_size // 3
+            pygame.draw.line(surf, TRAP_C, (cx_ - r2, cy_ - r2), (cx_ + r2, cy_ + r2), 2)
+            pygame.draw.line(surf, TRAP_C, (cx_ + r2, cy_ - r2), (cx_ - r2, cy_ + r2), 2)
+        elif cell == POWERUP and show_truth:
+            rr = max(3, cell_size // 5)
+            pygame.gfxdraw.filled_circle(surf, cx_, cy_, rr, POWER_C)
+            pygame.gfxdraw.aacircle(surf, cx_, cy_, rr, (255, 255, 200))
+        elif cell == MUD:
+            s = self.fonts["sm"].render("~", True, (150, 110, 50))
+            surf.blit(s, (cx_ - s.get_width() // 2, cy_ - s.get_height() // 2))
+        elif cell == WATER:
+            s = self.fonts["sm"].render("~", True, (80, 150, 255))
+            surf.blit(s, (cx_ - s.get_width() // 2, cy_ - s.get_height() // 2))
+        elif cell == ROAD:
+            pygame.draw.line(surf, (60, 120, 60), (cx_, y + 3), (cx_, y + cell_size - 3), 2)
+        else:
+            rr = max(2, cell_size // 10)
+            pygame.gfxdraw.filled_circle(surf, cx_, cy_, rr, PELLET_C)
+            pygame.gfxdraw.aacircle(surf, cx_, cy_, rr, PELLET_C)
+
+    def _draw_split_view(self):
+        left_margin = 10
+        top_margin = 24
+        gap = 14
+        usable_w = MAZE_W - 2 * left_margin
+        each_w = (usable_w - gap) // 2
+        each_h = MAZE_H - top_margin - 8
+        left_x = left_margin
+        right_x = left_margin + each_w + gap
+        self._draw_board(
+            self.screen,
+            board_x=left_x,
+            board_y=top_margin,
+            board_w=each_w,
+            board_h=each_h,
+            show_truth=False,
+            title="Agent Belief / Visible World",
+        )
+        self._draw_board(
+            self.screen,
+            board_x=right_x,
+            board_y=top_margin,
+            board_w=each_w,
+            board_h=each_h,
+            show_truth=True,
+            title="True Maze State",
+        )
+
+    def _draw_board(self, surf, board_x, board_y, board_w, board_h, show_truth=False, title=""):
+        cell_size = min(board_w // COLS, board_h // ROWS)
+
+        board = pygame.Surface((COLS * cell_size, ROWS * cell_size))
+        board.fill(DARK_BG)
+
+        for r in range(ROWS):
+            for c in range(COLS):
+                self._draw_board_cell(
+                    board,
+                    r,
+                    c,
+                    cell_size,
+                    show_truth=show_truth,
+                    show_fog=(not show_truth)
+                )
+
+        # Goal
+        gr, gc = self.goal_pos
+        gx, gy = gc * cell_size, gr * cell_size
+        pygame.draw.rect(board, GOAL_C, (gx + 2, gy + 2, cell_size - 4, cell_size - 4), border_radius=4)
+
+        # Agent
+        acx = self.agent_pos[1] * cell_size + cell_size // 2
+        acy = self.agent_pos[0] * cell_size + cell_size // 2
+        draw_pacman(board, acx, acy, max(6, cell_size // 2 - 2), self.mouth_angle, self.facing)
+
+        # Pursuers
+        for i, pp in enumerate(self.pursuer_pos):
+            if show_truth or self._visible(pp) or self.agent_status.full_reveal():
+                pcx = pp[1] * cell_size + cell_size // 2
+                pcy = pp[0] * cell_size + cell_size // 2
+                draw_ghost(
+                    board,
+                    pcx,
+                    pcy,
+                    max(6, cell_size // 2 - 2),
+                    GHOST_COLS[i % len(GHOST_COLS)],
+                    self.pursuer_status[i].is_frozen(),
+                    self.pursuer_status[i].is_frozen()
+                )
+
+        self.screen.blit(board, (board_x, board_y))
+
+        if title:
+            s = self.fonts["md"].render(title, True, ACCENT)
+            self.screen.blit(s, (board_x, board_y - 18))
 
     def _draw_maze(self):
         for r in range(ROWS):
@@ -728,10 +1009,11 @@ class VisualGame:
         pygame.draw.line(self.screen, WALL_BRIGHT, (px, 0), (px, MAZE_H), 1)
         y = 14
 
-        def txt(t, col=TEXT_W, f="md", indent=14):
+        def txt(t, col=TEXT_W, f="md", indent=14, gap=7):
             nonlocal y
             s = self.fonts[f].render(t, True, col)
-            self.screen.blit(s, (px + indent, y)); y += s.get_height() + 5
+            self.screen.blit(s, (px + indent, y))
+            y += s.get_height() + gap
 
         def div():
             nonlocal y
@@ -746,8 +1028,11 @@ class VisualGame:
         txt(f"pursuers  {PURSUER_NAMES.get(self.pursuer_strategy, self.pursuer_strategy)} x{self.num_pursuers}",
             TEXT_DIM)
         txt(f"dynamic {'ON' if self.dynamic else 'OFF'}", TEXT_DIM)
-        txt(f"fog     {'ON' if self.fog_of_war else 'OFF'}", TEXT_DIM); div()
-        txt("STATS", ACCENT, "lg")
+        txt(f"fog     {'ON' if self.fog_of_war else 'OFF'}", TEXT_W)
+        txt(f"split   {'ON' if self.show_belief_split else 'OFF'}",
+            GOOD_C if self.show_belief_split else WARN_C)
+        div()
+        txt("STATS", ACCENT, "lg", gap=9)
         txt(f"steps      {self.steps}")
         txt(f"explored   {len(self.seen)*100//(ROWS*COLS)}%")
         txt(f"shifts     {self.wall_shifts}")
@@ -760,8 +1045,9 @@ class VisualGame:
             txt(f"  {e}", col)
         div()
         txt("KEYS", ACCENT, "lg")
-        for line in ["SPACE  pause", "R      new maze", "1-4    algorithm",
-                     "+/-    speed", "F fog  D walls", "arrows manual", "ESC    quit"]:
+        for line in ["SPACE  pause",  "R      new maze",   "1-7    algorithm",
+                     "+/-    speed",  "F fog  D walls",    "B split view",
+                     "Z..V pursuer",  "arrows manual",     "ESC    quit"]:
             txt(line, TEXT_DIM, "sm")
 
     def _draw_bottom_bar(self):
@@ -816,16 +1102,38 @@ class VisualGame:
                         elif k == pygame.K_SPACE: self.paused = not self.paused
                         elif k == pygame.K_r: self.reset()
                         elif k == pygame.K_1:
-                            self.agent_algo = "lrta"; self.lrta_h = {}; self.agent_path = []
+                            self.agent_algo = "lrta"
+                            self.lrta_h = {}
+                            self.agent_path = []
                         elif k == pygame.K_2:
-                            self.agent_algo = "minimax"; self.agent_path = []
-                        elif k == pygame.K_3:
-                            self.agent_algo = "alpha_beta"; self.agent_path = []
+                            self.agent_algo = "minimax"
+                            self.agent_path = []
+                        elif k == pygame.K_3: self.agent_algo = "alpha_beta"; self.agent_path = []
                         elif k == pygame.K_4:
-                            self.agent_algo = "manual"; self.agent_path = []
+                            self.agent_algo = "expectimax"
+                            self.agent_path = []
+                        elif k == pygame.K_5:
+                            self.agent_algo = "hill_climb"
+                            self.agent_path = []
+                        elif k == pygame.K_6:
+                            self.agent_algo = "beam_search"
+                            self.agent_path = []
+                        elif k == pygame.K_7:
+                            self.agent_algo = "manual"
+                            self.agent_path = []
+
+                        elif k == pygame.K_z:
+                            self.pursuer_strategy = "random"
+                        elif k == pygame.K_x:
+                            self.pursuer_strategy = "greedy"
+                        elif k == pygame.K_c:
+                            self.pursuer_strategy = "beam"
+                        elif k == pygame.K_v:
+                            self.pursuer_strategy = "astar"
                         elif k == pygame.K_EQUALS: self.speed = min(20, self.speed + 1)
                         elif k == pygame.K_MINUS:  self.speed = max(1,  self.speed - 1)
                         elif k == pygame.K_f: self.fog_of_war = not self.fog_of_war
+                        elif k == pygame.K_b: self.show_belief_split = not self.show_belief_split
                         elif k == pygame.K_d: self.dynamic = not self.dynamic; self.reset()
                         elif k == pygame.K_UP:    self.manual_dir = (-1,  0)
                         elif k == pygame.K_DOWN:  self.manual_dir = ( 1,  0)
