@@ -537,6 +537,69 @@ class VisualGame:
             return pos
         return min(nb, key=lambda n: self._manhattan(n, self.goal_pos))
 
+    def _next_agent_algo(self):
+        if self.agent_algo == "manual":
+            return "manual"
+        if self.agent_algo not in AGENT_ORDER:
+            return "lrta"
+        idx = AGENT_ORDER.index(self.agent_algo)
+        for step in range(1, len(AGENT_ORDER) + 1):
+            cand = AGENT_ORDER[(idx + step) % len(AGENT_ORDER)]
+            if cand != "manual":
+                return cand
+        return self.agent_algo
+
+    def _next_pursuer_algo(self):
+        if self.pursuer_strategy not in PURSUER_ORDER:
+            return "greedy"
+        idx = PURSUER_ORDER.index(self.pursuer_strategy)
+        return PURSUER_ORDER[(idx + 1) % len(PURSUER_ORDER)]
+
+    def _switch_agent_algo(self, new_algo, reason=""):
+        if new_algo == self.agent_algo:
+            return
+        old = self.agent_algo
+        self.agent_algo = new_algo
+        self.agent_path = []
+        self.lrta_h = {}
+        msg = f"Agent switched: {ALGO_NAMES.get(old, old)} → {ALGO_NAMES.get(new_algo, new_algo)}"
+        if reason:
+            msg += f" ({reason})"
+        self._flash(msg, WARN_C)
+
+    def _switch_pursuer_algo(self, new_algo, reason=""):
+        if new_algo == self.pursuer_strategy:
+            return
+        old = self.pursuer_strategy
+        self.pursuer_strategy = new_algo
+        msg = f"Pursuer switched: {PURSUER_NAMES.get(old, old)} → {PURSUER_NAMES.get(new_algo, new_algo)}"
+        if reason:
+            msg += f" ({reason})"
+        self._flash(msg, ACCENT)
+
+    def _agent_is_stuck(self):
+        hist = list(self.agent_history)
+        if len(hist) < 6:
+            return False
+        # Case 1: no movement for several turns
+        if len(set(hist[-4:])) == 1:
+            return True
+        # Case 2: oscillating between two cells
+        tail = hist[-6:]
+        if len(set(tail)) <= 2:
+            return True
+        return False
+    def _pursuer_is_stuck(self):
+        hist = list(self.pursuer_history)
+        if len(hist) < 6:
+            return False
+        if len(set(hist[-4:])) == 1:
+            return True
+        tail = hist[-6:]
+        if len(set(tail)) <= 2:
+            return True
+        return False
+
     def _astar(self, start, goal, belief=True):
         h = lambda p: self._manhattan(p, goal)
         ctr = 0; heap = [(h(start), 0, ctr, start, [start])]; vis = {}
@@ -634,11 +697,39 @@ class VisualGame:
                 self._end_game("CAUGHT"); return
         if self.mouth_open:
             self.mouth_angle = min(35, self.mouth_angle + 8)
-            if self.mouth_angle >= 35: self.mouth_open = False
+            if self.mouth_angle >= 35:
+                self.mouth_open = False
         else:
             self.mouth_angle = max(2, self.mouth_angle - 8)
-            if self.mouth_angle <= 2: self.mouth_open = True
+            if self.mouth_angle <= 2:
+                self.mouth_open = True
         self.steps += 1
+
+        # Track recent movement history
+        self.agent_history.append(tuple(self.agent_pos))
+        self.pursuer_history.append(tuple(tuple(p) for p in self.pursuer_pos))
+        # Agent stuck handling
+        if self.agent_algo != "manual" and self._agent_is_stuck():
+            self.agent_stuck_count += 1
+        else:
+            self.agent_stuck_count = 0
+        if self.agent_stuck_count >= 2:
+            new_algo = self._next_agent_algo()
+            self._switch_agent_algo(new_algo, reason="stuck loop")
+            self.agent_stuck_count = 0
+            self.agent_history.clear()
+            self.agent_history.append(tuple(self.agent_pos))
+        # Pursuer stuck handling
+        if self._pursuer_is_stuck():
+            self.pursuer_stuck_count += 1
+        else:
+            self.pursuer_stuck_count = 0
+        if self.pursuer_stuck_count >= 2:
+            new_algo = self._next_pursuer_algo()
+            self._switch_pursuer_algo(new_algo, reason="stuck loop")
+            self.pursuer_stuck_count = 0
+            self.pursuer_history.clear()
+            self.pursuer_history.append(tuple(tuple(p) for p in self.pursuer_pos))
 
     def _do_agent_move(self):
         pos = self.agent_pos
