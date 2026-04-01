@@ -1,4 +1,4 @@
-# Maze Navigator — Adversarial AI
+# Maze Navigator - Adversarial AI
 
 Foundations of Artificial Intelligence project on **adversarial search, partial observability, dynamic environments, and experimental evaluation**.
 
