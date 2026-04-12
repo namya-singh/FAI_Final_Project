@@ -320,3 +320,133 @@ def beam_search(maze, beam_width=3, heuristic_name="manhattan", start=None):
                         runtime_ms=(time.perf_counter()-t0)*1000, nodes_expanded=expanded,
                         max_frontier=max_f
                         )
+
+# weighted a*
+
+def weighted_astar(maze, heuristic_name="manhattan", weight=1.5, start=None):
+    """
+    weighted a* search — trades optimality for speed by inflating the heuristic.
+
+    f(n) = g(n) + w * h(n)  where w > 1
+
+    with w=1 this is identical to standard a*.
+    with w>1 the agent becomes more greedy, expanding fewer nodes
+    but potentially finding a suboptimal path.
+    the resulting path cost is guaranteed to be within w * optimal_cost.
+
+    this is an epsilon-suboptimal algorithm: useful when speed matters
+    more than finding the absolute shortest path.
+
+    args:
+        weight : inflation factor w >= 1.0 (default 1.5)
+    """
+    h        = HEURISTICS[heuristic_name]
+    t0       = time.perf_counter()
+    s        = start or maze.start
+    root     = Node(s)
+    counter  = 0
+    heap     = [(weight * h(s, maze.goal), counter, root)]
+    explored = {}
+    expanded = 0
+    max_f    = 1
+
+    while heap:
+        max_f      = max(max_f, len(heap))
+        _, _, node = heapq.heappop(heap)
+
+        if maze.is_goal(node.state):
+            return SearchResult(
+                f"Weighted A*(w={weight})", heuristic=heuristic_name,
+                success=True, path=node.path(), actions=node.solution(),
+                path_cost=node.path_cost, nodes_expanded=expanded,
+                max_frontier=max_f,
+                runtime_ms=(time.perf_counter() - t0) * 1000,
+            )
+
+        if node.state in explored and explored[node.state] <= node.path_cost:
+            continue
+        explored[node.state] = node.path_cost
+        expanded += 1
+
+        for child in _expand(node, maze):
+            if child.state not in explored:
+                f_val   = child.path_cost + weight * h(child.state, maze.goal)
+                counter += 1
+                heapq.heappush(heap, (f_val, counter, child))
+
+    return SearchResult(
+        f"Weighted A*(w={weight})", heuristic=heuristic_name,
+        runtime_ms=(time.perf_counter() - t0) * 1000,
+        nodes_expanded=expanded,
+    )
+
+
+# ida* (iterative deepening a*)
+
+def idastar(maze, heuristic_name="manhattan", start=None):
+    """
+    ida* (iterative deepening a*) — memory-bounded optimal search.
+
+    instead of storing all nodes in a priority queue like a*, ida* runs
+    repeated depth-first searches with increasing f-cost thresholds.
+    each iteration only follows paths where f(n) <= threshold.
+
+    memory usage: o(d) where d = solution depth (vs o(b^d) for a*).
+    time complexity: same as a* in the worst case.
+
+    complete: yes  |  optimal: yes (admissible heuristic)  |  memory: o(d)
+
+    this is the right algorithm when the maze is very large and a* runs
+    out of memory — it finds the same optimal path using almost no space.
+    """
+    h       = HEURISTICS[heuristic_name]
+    t0      = time.perf_counter()
+    s       = start or maze.start
+    expanded= [0]
+
+    def search(path, g, threshold):
+        node    = path[-1]
+        f       = g + h(node.state, maze.goal)
+        if f > threshold:
+            return f, None
+        if maze.is_goal(node.state):
+            return -1, path[:]
+        minimum = math.inf
+        for child in _expand(path[-1], maze):
+            if any(p.state == child.state for p in path):
+                continue
+            expanded[0] += 1
+            path.append(child)
+            result, solution = search(path, g + child.path_cost - node.path_cost, threshold)
+            if result == -1:
+                return -1, solution
+            if result < minimum:
+                minimum = result
+            path.pop()
+        return minimum, None
+
+    threshold = h(s, maze.goal)
+    root      = Node(s)
+    path      = [root]
+
+    while True:
+        result, solution = search(path, 0, threshold)
+        if result == -1 and solution:
+            goal_node = solution[-1]
+            return SearchResult(
+                "IDA*", heuristic=heuristic_name,
+                success=True,
+                path=[n.state for n in solution],
+                actions=[n.action for n in solution[1:]],
+                path_cost=goal_node.path_cost,
+                nodes_expanded=expanded[0],
+                max_frontier=1,
+                runtime_ms=(time.perf_counter() - t0) * 1000,
+            )
+        if result == math.inf:
+            return SearchResult(
+                "IDA*", heuristic=heuristic_name,
+                runtime_ms=(time.perf_counter() - t0) * 1000,
+                nodes_expanded=expanded[0],
+            )
+        threshold = result

@@ -1,5 +1,3 @@
-
-
 import copy
 from enum import Enum
 
@@ -71,19 +69,29 @@ class GameState:
 
     def heuristic_eval(self):
         """
-        Non-terminal heuristic evaluation from agent's perspective.
-        Used by Minimax with depth limit and Expectimax.
+        non-terminal heuristic evaluation from agent perspective.
+        used by minimax with depth limit and expectimax.
 
-        Score = (pursuer_dist_to_goal - agent_dist_to_goal) * 10
-                - agent_dist_to_pursuer * 5
+        score = (pursuer_dist_to_goal - agent_dist_to_goal) * 10
+                + agent_dist_to_pursuer * 5
 
-        Higher is better for the agent.
+        higher is better for the agent.
+
+        known limitation: uses manhattan distance which ignores walls.
+        the true shortest path through the maze can differ significantly
+        from the straight-line manhattan estimate, especially at high
+        obstacle densities. a more accurate eval would use bfs distance
+        but that costs o(n^2) per node evaluation and makes minimax and
+        expectimax too slow at any useful search depth. manhattan distance
+        is chosen deliberately for computational efficiency. the tradeoff
+        is that the agent may make suboptimal decisions near dense wall
+        clusters. this is acknowledged as a limitation in our analysis.
         """
         ad = _manhattan(self.agent_pos,   self.maze.goal)
         pd = _manhattan(self.pursuer_pos, self.maze.goal)
         sd = _manhattan(self.agent_pos,   self.pursuer_pos)
 
-        # Agent wants: small ad (close to goal), large sd (far from pursuer)
+        # agent wants: small ad (close to goal), large sd (far from pursuer)
         return (pd - ad) * 10 + sd * 5
 
     #  move generation 

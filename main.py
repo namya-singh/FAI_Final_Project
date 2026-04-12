@@ -261,7 +261,7 @@ def main():
     parser.add_argument("--seed",     type=int,   default=7)
     parser.add_argument("--algo",     type=str,   default=None,
                         choices=["minimax","alpha_beta","expectimax","lrta",
-                                 "hill_climb","beam_search","alpha_beta"])
+                                 "hill_climb","beam_search","alpha_beta","manual"])
     parser.add_argument("--pursuer",  type=str,   default="greedy",
                         choices=["random","greedy","astar", "beam"])
     parser.add_argument("--dynamic",  action="store_true")

@@ -252,23 +252,23 @@ class StartScreen:
     def handle(self, event):
         if event.type == pygame.KEYDOWN:
             if event.key in (pygame.K_RETURN, pygame.K_SPACE): return "start"
-            elif event.key == pygame.K_LEFT:
+            elif event.key == pygame.K_a:
                 self.algo_idx = (self.algo_idx - 1) % len(self.algo_opts)
                 self.algo = self.algo_opts[self.algo_idx]
-            elif event.key == pygame.K_RIGHT:
+            elif event.key == pygame.K_d:
                 self.algo_idx = (self.algo_idx + 1) % len(self.algo_opts)
                 self.algo = self.algo_opts[self.algo_idx]
-            elif event.key == pygame.K_UP:
+            elif event.key == pygame.K_w:
                 self.pursuer_idx = (self.pursuer_idx - 1) % len(self.pursuer_opts)
                 self.pursuer = self.pursuer_opts[self.pursuer_idx]
-            elif event.key == pygame.K_DOWN:
+            elif event.key == pygame.K_s:
                 self.pursuer_idx = (self.pursuer_idx + 1) % len(self.pursuer_opts)
                 self.pursuer = self.pursuer_opts[self.pursuer_idx]
             elif event.key == pygame.K_1: self.pursuers = 1
             elif event.key == pygame.K_2: self.pursuers = 2
             elif event.key == pygame.K_3: self.pursuers = 3
-            elif event.key == pygame.K_d: self.dynamic = not self.dynamic
-            elif event.key == pygame.K_f: self.fog = not self.fog
+            elif event.key == pygame.K_t: self.dynamic = not self.dynamic
+            elif event.key == pygame.K_k: self.fog = not self.fog
         return None
 
     def draw(self):
@@ -280,17 +280,17 @@ class StartScreen:
             pulse = int(180 + 60 * math.sin(self.t / 30 + d["x"]))
             pygame.gfxdraw.filled_circle(self.screen, int(d["x"]), int(d["y"]),
                                          d["r"], (pulse, pulse // 2, 0))
-        cy = 70
+        cy = 45
         title = self.fonts["xl"].render("MAZE  NAVIGATOR", True, PACMAN_Y)
         self.screen.blit(title, (WIN_W // 2 - title.get_width() // 2, cy))
         mouth = int(30 * abs(math.sin(self.t / 15)))
         draw_pacman(self.screen, WIN_W // 2 - title.get_width() // 2 - 40, cy + 18, 18, mouth, 0)
-        cy += 55
-        sub = self.fonts["md"].render(
+        cy += 42
+        sub = self.fonts["sm"].render(
             "adversarial search  |  partial observability  |  dynamic maze", True, TEXT_DIM)
         self.screen.blit(sub, (WIN_W // 2 - sub.get_width() // 2, cy))
-        cy += 50
-        bw, bh = 560, 300
+        cy += 36
+        bw, bh = 560, 260
         bx = WIN_W // 2 - bw // 2
         pygame.draw.rect(self.screen, (12, 12, 40), (bx, cy, bw, bh), border_radius=12)
         pygame.draw.rect(self.screen, WALL_BRIGHT, (bx, cy, bw, bh), 2, border_radius=12)
@@ -301,30 +301,30 @@ class StartScreen:
             self.screen.blit(ls, (bx + 34, cy + yy))
             self.screen.blit(vs, (bx + bw - vs.get_width() - 34, cy + yy))
 
-        row("agent algorithm", f"< {ALGO_NAMES.get(self.algo, self.algo)} >", 22, True)
-        row("pursuer strategy", f"< {PURSUER_NAMES.get(self.pursuer, self.pursuer)} >", 58, True)
-        row("number of pursuers", f"{self.pursuers}  (press 1/2/3)", 94)
-        row("dynamic walls", "ON  (D to toggle)" if self.dynamic else "OFF (D to toggle)", 130)
-        row("fog of war", "ON  (F to toggle)" if self.fog else "OFF (F to toggle)", 166)
-        row("split view", "toggle in game (B)", 202)
+        row("agent algorithm", f"< {ALGO_NAMES.get(self.algo, self.algo)} >", 18, True)
+        row("pursuer strategy", f"< {PURSUER_NAMES.get(self.pursuer, self.pursuer)} >", 50, True)
+        row("number of pursuers", f"{self.pursuers}  (press 1/2/3)", 82)
+        row("dynamic walls", "ON  (T to toggle)" if self.dynamic else "OFF (T to toggle)", 114)
+        row("fog of war", "ON  (K to toggle)" if self.fog else "OFF (K to toggle)", 146)
+        row("split view", "toggle in game (B)", 178)
         hint = self.fonts["sm"].render(
-            "< / > change agent     up/down change pursuer     ENTER to start", True, TEXT_DIM)
-        self.screen.blit(hint, (WIN_W // 2 - hint.get_width() // 2, cy + bh + 20))
-        cy2 = cy + bh + 40
+            "A/D change agent   W/S change pursuer   T=walls  K=fog   ENTER to start", True, TEXT_DIM)
+        self.screen.blit(hint, (WIN_W // 2 - hint.get_width() // 2, cy + bh + 10))
+        cy2 = cy + bh + 28
         for i, line in enumerate([
             "SPACE pause   |   R reset maze   |   1-7 switch agent",
-            "Z/X/C/V pursuer   |   +/- speed   |   F fog toggle",
-            "D dynamic walls   |   B split view   |   ESC quit",
+            "Z/X/C/V pursuer   |   +/- speed   |   B split view",
+            "T dynamic walls   |   K fog        |   ESC quit",
         ]):
             s = self.fonts["sm"].render(line, True, TEXT_W)
-            self.screen.blit(s, (WIN_W // 2 - s.get_width() // 2, cy2 + i * 24))
+            self.screen.blit(s, (WIN_W // 2 - s.get_width() // 2, cy2 + i * 20))
         if HIGH_SCORES:
-            cy3 = cy2 + 55
-            hs = self.fonts["lg"].render("HIGH SCORES", True, ACCENT)
+            cy3 = cy2 + 72
+            hs = self.fonts["md"].render("HIGH SCORES", True, ACCENT)
             self.screen.blit(hs, (WIN_W // 2 - hs.get_width() // 2, cy3))
-            for i, (sc, nm) in enumerate(HIGH_SCORES[:5]):
-                s = self.fonts["md"].render(f"#{i+1}  {nm:<18} {sc:>6}", True, TEXT_W)
-                self.screen.blit(s, (WIN_W // 2 - s.get_width() // 2, cy3 + 26 + i * 22))
+            for i, (sc, nm) in enumerate(HIGH_SCORES[:3]):
+                s = self.fonts["sm"].render(f"#{i+1}  {nm:<18} {sc:>6}", True, TEXT_W)
+                self.screen.blit(s, (WIN_W // 2 - s.get_width() // 2, cy3 + 22 + i * 18))
 
 
 class GameOverScreen:
@@ -398,9 +398,14 @@ class VisualGame:
         self.num_pursuers = num_pursuers; self.dynamic = dynamic; self.fog_of_war = fog_of_war
         self.speed = 7; self.paused = False; self.tick_acc = 0; self.t = 0
         self.show_belief_split = False
-        self.manual_dir = None; self.screen_mode = SCREEN_START
+        self.manual_dir = []
         self.start_screen = StartScreen(self.screen, self.fonts)
+        if agent_algo in self.start_screen.algo_opts:
+            idx = self.start_screen.algo_opts.index(agent_algo)
+            self.start_screen.algo_idx = idx
+            self.start_screen.algo = agent_algo
         self.go_screen = None; self.game_state_data = {}
+        self.screen_mode = SCREEN_START
 
     def _build_sounds(self):
         import numpy as np
@@ -451,6 +456,7 @@ class VisualGame:
         self.steps = 0; self.wall_shifts = 0; self.nodes_exp = 0; self.score = 0
         self.game_over = False; self.outcome = ""
         self.particles = []; self.flash_msgs = []; self.wall_anims = []; self.tick_acc = 0
+        self.manual_dir = []
         self.go_screen = None; self.screen_mode = SCREEN_GAME
         self.agent_history = deque(maxlen=10)
         self.pursuer_history = deque(maxlen=10)
@@ -736,10 +742,9 @@ class VisualGame:
         algo = self.agent_algo
 
         if algo == "manual":
-            if self.manual_dir is None:
+            if not self.manual_dir:
                 return
-            dr, dc = self.manual_dir
-            self.manual_dir = None
+            dr, dc = self.manual_dir.pop(0)
             new_pos = [pos[0] + dr, pos[1] + dc]
             self.agent_path = []
 
@@ -1137,9 +1142,66 @@ class VisualGame:
         div()
         txt("KEYS", ACCENT, "lg")
         for line in ["SPACE  pause",  "R      new maze",   "1-7    algorithm",
-                     "+/-    speed",  "F fog  D walls",    "B split view",
+                     "+/-    speed",  "K fog  T walls",    "B split view",
                      "Z..V pursuer",  "arrows manual",     "ESC    quit"]:
             txt(line, TEXT_DIM, "sm")
+        self._draw_minimap()
+
+
+    def _draw_minimap(self):
+        """
+        draws a scaled-down true maze overview in the side panel.
+        shows walls, open cells, agent and pursuer positions,
+        and the goal — ignoring fog of war entirely.
+        this gives the viewer a god-eye view alongside the
+        agent limited fog-of-war perspective.
+        """
+        mm_cols = min(PANEL_W - 20, 230)
+        mm_rows = int(mm_cols * ROWS / COLS)
+        cs      = mm_cols // COLS
+        if cs < 2: cs = 2
+        mm_w    = cs * COLS
+        mm_h    = cs * ROWS
+        ox      = MAZE_W + (PANEL_W - mm_w) // 2
+        oy      = MAZE_H - mm_h - 10
+
+        for r in range(ROWS):
+            for c in range(COLS):
+                x   = ox + c * cs
+                y   = oy + r * cs
+                cell = self.grid[r][c]
+                if cell == 1:
+                    col = (40, 50, 120)
+                elif cell == 2:
+                    col = (160, 40, 40)
+                elif cell == 3:
+                    col = (160, 140, 40)
+                elif cell == 4:
+                    col = (80, 55, 20)
+                elif cell == 5:
+                    col = (20, 60, 140)
+                elif cell == 6:
+                    col = (20, 60, 30)
+                else:
+                    col = (20, 22, 50)
+                pygame.draw.rect(self.screen, col, (x, y, cs, cs))
+
+        gr, gc = self.maze.goal
+        pygame.draw.rect(self.screen, GOAL_C,
+                         (ox + gc*cs, oy + gr*cs, cs, cs))
+
+        for i, pp in enumerate(self.pursuer_pos):
+            pcol = GHOST_COLS[i % len(GHOST_COLS)]
+            pygame.draw.rect(self.screen, pcol,
+                             (ox + pp[1]*cs, oy + pp[0]*cs, cs, cs))
+
+        ar, ac = self.agent_pos
+        pygame.draw.rect(self.screen, PACMAN_Y,
+                         (ox + ac*cs, oy + ar*cs, cs, cs))
+
+        label = self.fonts["sm"].render("true maze", True, TEXT_DIM)
+        self.screen.blit(label, (ox, oy - 14))
+        pygame.draw.rect(self.screen, (40, 45, 90), (ox-1, oy-1, mm_w+2, mm_h+2), 1)
 
     def _draw_bottom_bar(self):
         y = MAZE_H
@@ -1177,7 +1239,7 @@ class VisualGame:
             for event in pygame.event.get():
                 if event.type == pygame.QUIT:
                     pygame.quit(); sys.exit()
-                if self.screen_mode == SCREEN_START:
+                elif self.screen_mode == SCREEN_START:
                     result = self.start_screen.handle(event)
                     if result == "start":
                         self.agent_algo = self.start_screen.algo
@@ -1223,13 +1285,20 @@ class VisualGame:
                             self.pursuer_strategy = "astar"
                         elif k == pygame.K_EQUALS: self.speed = min(20, self.speed + 1)
                         elif k == pygame.K_MINUS:  self.speed = max(1,  self.speed - 1)
-                        elif k == pygame.K_f: self.fog_of_war = not self.fog_of_war
-                        elif k == pygame.K_b: self.show_belief_split = not self.show_belief_split
-                        elif k == pygame.K_d: self.dynamic = not self.dynamic; self.reset()
-                        elif k == pygame.K_UP:    self.manual_dir = (-1,  0)
-                        elif k == pygame.K_DOWN:  self.manual_dir = ( 1,  0)
-                        elif k == pygame.K_LEFT:  self.manual_dir = ( 0, -1)
-                        elif k == pygame.K_RIGHT: self.manual_dir = ( 0,  1)
+                        elif k == pygame.K_k:
+                            self.fog_of_war = not self.fog_of_war
+                            self._flash(f"fog of war: {'ON' if self.fog_of_war else 'OFF'}", GOOD_C if self.fog_of_war else WARN_C)
+                        elif k == pygame.K_b:
+                            self.show_belief_split = not self.show_belief_split
+                            self._flash(f"split view: {'ON' if self.show_belief_split else 'OFF'}", GOOD_C if self.show_belief_split else WARN_C)
+                        elif k == pygame.K_t:
+                            self.dynamic = not self.dynamic
+                            self.reset()
+                            self._flash(f"dynamic walls: {'ON' if self.dynamic else 'OFF'}", GOOD_C if self.dynamic else WARN_C)
+                        elif k == pygame.K_UP:    self.manual_dir.append((-1,  0))
+                        elif k == pygame.K_DOWN:  self.manual_dir.append(( 1,  0))
+                        elif k == pygame.K_LEFT:  self.manual_dir.append(( 0, -1))
+                        elif k == pygame.K_RIGHT: self.manual_dir.append(( 0,  1))
                 elif self.screen_mode == SCREEN_GAMEOVER and self.go_screen:
                     result = self.go_screen.handle(event)
                     if result == "reset": self.reset()
@@ -1238,11 +1307,16 @@ class VisualGame:
                         self.start_screen = StartScreen(self.screen, self.fonts)
                     elif result == "quit": pygame.quit(); sys.exit()
             if self.screen_mode == SCREEN_GAME and not self.paused and not self.game_over:
-                self.tick_acc += dt
-                ms = 1000 // max(1, self.speed)
-                while self.tick_acc >= ms:
-                    self.tick(); self.tick_acc -= ms
-                    if self.game_over: self.screen_mode = SCREEN_GAMEOVER; break
+                if self.agent_algo == "manual":
+                    while self.manual_dir:
+                        self.tick()
+                        if self.game_over: self.screen_mode = SCREEN_GAMEOVER; break
+                else:
+                    self.tick_acc += dt
+                    ms = 1000 // max(1, self.speed)
+                    while self.tick_acc >= ms:
+                        self.tick(); self.tick_acc -= ms
+                        if self.game_over: self.screen_mode = SCREEN_GAMEOVER; break
             if self.screen_mode == SCREEN_START:
                 self.start_screen.draw()
             elif self.screen_mode in (SCREEN_GAME, SCREEN_GAMEOVER):
