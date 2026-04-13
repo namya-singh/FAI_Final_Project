@@ -1142,14 +1142,14 @@ class VisualGame:
         this gives the viewer a god-eye view alongside the
         agent limited fog-of-war perspective.
         """
-        mm_cols = min(PANEL_W - 30, 210)
+        mm_cols = min(PANEL_W - 30, 80)
         mm_rows = int(mm_cols * ROWS / COLS)
         cs      = mm_cols // COLS
         if cs < 2: cs = 2
         mm_w    = cs * COLS
         mm_h    = cs * ROWS
-        ox      = MAZE_W + (PANEL_W - mm_w) // 2
-        oy      = MAZE_H - mm_h - 80
+        ox      = MAZE_W + PANEL_W - mm_w - 15 
+        oy = MAZE_H - mm_h - 2
 
         for r in range(ROWS):
             for c in range(COLS):
