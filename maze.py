@@ -154,7 +154,8 @@ class Maze:
                 return True
             for dr, dc in [(-1,0),(1,0),(0,-1),(0,1)]:
                 nr, nc = r+dr, c+dc
-                if 0<=nr<rows and 0<=nc<cols and grid[nr][nc]==0 and (nr,nc) not in visited:
+                # treat any non-wall cell as walkable (0=open, 2=trap, 3=powerup, 4=mud, 5=water, 6=road)
+                if 0<=nr<rows and 0<=nc<cols and grid[nr][nc]!=1 and (nr,nc) not in visited:
                     visited.add((nr,nc))
                     queue.append((nr,nc))
         return False
@@ -221,7 +222,7 @@ class DynamicMaze(Maze):
             if self.grid[r][c] == self.WALL
         ]
 
-        # Candidate open cells that can become walls
+        # Candidate open cells that can become walls (plain floor only, not terrain/objects)
         fillable_cells = [
             (r, c)
             for r in range(1, self.rows - 1)
@@ -257,7 +258,8 @@ class DynamicMaze(Maze):
     def clone(self):
         """Returns a deep copy of this DynamicMaze (used by search algorithms for lookahead)."""
         new = DynamicMaze(
-            self.grid, self.start, self.goal,
+            [row[:] for row in self.grid],  # deep copy grid
+            self.start, self.goal,
             self.shift_interval, self.num_shifts
         )
         new.step_count    = self.step_count
@@ -267,4 +269,4 @@ class DynamicMaze(Maze):
     @classmethod
     def from_static(cls, maze, shift_interval=5, num_shifts=2, seed=None):
         """Upgrade a static Maze into a DynamicMaze."""
-        return cls(maze.grid, maze.start, maze.goal, shift_interval, num_shifts, seed)
+        return cls([row[:] for row in maze.grid], maze.start, maze.goal, shift_interval, num_shifts, seed)

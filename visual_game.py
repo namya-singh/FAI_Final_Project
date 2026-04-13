@@ -252,23 +252,23 @@ class StartScreen:
     def handle(self, event):
         if event.type == pygame.KEYDOWN:
             if event.key in (pygame.K_RETURN, pygame.K_SPACE): return "start"
-            elif event.key == pygame.K_a:
+            elif event.key == pygame.K_LEFT:
                 self.algo_idx = (self.algo_idx - 1) % len(self.algo_opts)
                 self.algo = self.algo_opts[self.algo_idx]
-            elif event.key == pygame.K_d:
+            elif event.key == pygame.K_RIGHT:
                 self.algo_idx = (self.algo_idx + 1) % len(self.algo_opts)
                 self.algo = self.algo_opts[self.algo_idx]
-            elif event.key == pygame.K_w:
+            elif event.key == pygame.K_UP:
                 self.pursuer_idx = (self.pursuer_idx - 1) % len(self.pursuer_opts)
                 self.pursuer = self.pursuer_opts[self.pursuer_idx]
-            elif event.key == pygame.K_s:
+            elif event.key == pygame.K_DOWN:
                 self.pursuer_idx = (self.pursuer_idx + 1) % len(self.pursuer_opts)
                 self.pursuer = self.pursuer_opts[self.pursuer_idx]
             elif event.key == pygame.K_1: self.pursuers = 1
             elif event.key == pygame.K_2: self.pursuers = 2
             elif event.key == pygame.K_3: self.pursuers = 3
-            elif event.key == pygame.K_t: self.dynamic = not self.dynamic
-            elif event.key == pygame.K_k: self.fog = not self.fog
+            elif event.key == pygame.K_d: self.dynamic = not self.dynamic
+            elif event.key == pygame.K_f: self.fog = not self.fog
         return None
 
     def draw(self):
@@ -304,17 +304,17 @@ class StartScreen:
         row("agent algorithm", f"< {ALGO_NAMES.get(self.algo, self.algo)} >", 18, True)
         row("pursuer strategy", f"< {PURSUER_NAMES.get(self.pursuer, self.pursuer)} >", 50, True)
         row("number of pursuers", f"{self.pursuers}  (press 1/2/3)", 82)
-        row("dynamic walls", "ON  (T to toggle)" if self.dynamic else "OFF (T to toggle)", 114)
-        row("fog of war", "ON  (K to toggle)" if self.fog else "OFF (K to toggle)", 146)
+        row("dynamic walls", "ON  (D to toggle)" if self.dynamic else "OFF (D to toggle)", 114)
+        row("fog of war", "ON  (F to toggle)" if self.fog else "OFF (F to toggle)", 146)
         row("split view", "toggle in game (B)", 178)
         hint = self.fonts["sm"].render(
-            "A/D change agent   W/S change pursuer   T=walls  K=fog   ENTER to start", True, TEXT_DIM)
+            "< / > change agent     up/down change pursuer     ENTER to start", True, TEXT_DIM)
         self.screen.blit(hint, (WIN_W // 2 - hint.get_width() // 2, cy + bh + 10))
         cy2 = cy + bh + 28
         for i, line in enumerate([
             "SPACE pause   |   R reset maze   |   1-7 switch agent",
-            "Z/X/C/V pursuer   |   +/- speed   |   B split view",
-            "T dynamic walls   |   K fog        |   ESC quit",
+            "Z/X/C/V pursuer   |   +/- speed   |   F fog toggle",
+            "D dynamic walls   |   B split view   |   ESC quit",
         ]):
             s = self.fonts["sm"].render(line, True, TEXT_W)
             self.screen.blit(s, (WIN_W // 2 - s.get_width() // 2, cy2 + i * 20))
@@ -398,14 +398,9 @@ class VisualGame:
         self.num_pursuers = num_pursuers; self.dynamic = dynamic; self.fog_of_war = fog_of_war
         self.speed = 7; self.paused = False; self.tick_acc = 0; self.t = 0
         self.show_belief_split = False
-        self.manual_dir = []
+        self.manual_dir = None; self.screen_mode = SCREEN_START
         self.start_screen = StartScreen(self.screen, self.fonts)
-        if agent_algo in self.start_screen.algo_opts:
-            idx = self.start_screen.algo_opts.index(agent_algo)
-            self.start_screen.algo_idx = idx
-            self.start_screen.algo = agent_algo
         self.go_screen = None; self.game_state_data = {}
-        self.screen_mode = SCREEN_START
 
     def _build_sounds(self):
         import numpy as np
@@ -431,7 +426,7 @@ class VisualGame:
 
     def reset(self):
         base = Maze.generate_random(ROWS, COLS, obstacle_density=0.27, seed=random.randint(0, 99999))
-        self.maze = DynamicMaze.from_static(base, shift_interval=7, num_shifts=3, seed=42) \
+        self.maze = DynamicMaze.from_static(base, shift_interval=4, num_shifts=5, seed=42) \
                     if self.dynamic else base
         self.grid = self.maze.grid
         raw_starts = [(ROWS-1, 0), (0, COLS-1), (ROWS-1, COLS-2)]
@@ -456,7 +451,6 @@ class VisualGame:
         self.steps = 0; self.wall_shifts = 0; self.nodes_exp = 0; self.score = 0
         self.game_over = False; self.outcome = ""
         self.particles = []; self.flash_msgs = []; self.wall_anims = []; self.tick_acc = 0
-        self.manual_dir = []
         self.go_screen = None; self.screen_mode = SCREEN_GAME
         self.agent_history = deque(maxlen=10)
         self.pursuer_history = deque(maxlen=10)
@@ -587,14 +581,13 @@ class VisualGame:
         hist = list(self.agent_history)
         if len(hist) < 6:
             return False
-        # Case 1: no movement for several turns
         if len(set(hist[-4:])) == 1:
             return True
-        # Case 2: oscillating between two cells
         tail = hist[-6:]
         if len(set(tail)) <= 2:
             return True
         return False
+
     def _pursuer_is_stuck(self):
         hist = list(self.pursuer_history)
         if len(hist) < 6:
@@ -666,7 +659,6 @@ class VisualGame:
         if self.pursuer_strategy == "greedy":
             return min(nb, key=lambda n: self._manhattan(n, self.agent_pos))
         if self.pursuer_strategy == "beam":
-            # temporary approximation
             path = self._astar(pp, self.agent_pos, belief=False)
             return path[1] if path and len(path) > 1 else nb[0]
         path = self._astar(pp, self.agent_pos, belief=False)
@@ -711,10 +703,8 @@ class VisualGame:
                 self.mouth_open = True
         self.steps += 1
 
-        # Track recent movement history
         self.agent_history.append(tuple(self.agent_pos))
         self.pursuer_history.append(tuple(tuple(p) for p in self.pursuer_pos))
-        # Agent stuck handling
         if self.agent_algo != "manual" and self._agent_is_stuck():
             self.agent_stuck_count += 1
         else:
@@ -725,7 +715,6 @@ class VisualGame:
             self.agent_stuck_count = 0
             self.agent_history.clear()
             self.agent_history.append(tuple(self.agent_pos))
-        # Pursuer stuck handling
         if self._pursuer_is_stuck():
             self.pursuer_stuck_count += 1
         else:
@@ -742,9 +731,10 @@ class VisualGame:
         algo = self.agent_algo
 
         if algo == "manual":
-            if not self.manual_dir:
+            if self.manual_dir is None:
                 return
-            dr, dc = self.manual_dir.pop(0)
+            dr, dc = self.manual_dir
+            self.manual_dir = None
             new_pos = [pos[0] + dr, pos[1] + dc]
             self.agent_path = []
 
@@ -989,17 +979,14 @@ class VisualGame:
                     show_fog=(not show_truth)
                 )
 
-        # Goal
         gr, gc = self.goal_pos
         gx, gy = gc * cell_size, gr * cell_size
         pygame.draw.rect(board, GOAL_C, (gx + 2, gy + 2, cell_size - 4, cell_size - 4), border_radius=4)
 
-        # Agent
         acx = self.agent_pos[1] * cell_size + cell_size // 2
         acy = self.agent_pos[0] * cell_size + cell_size // 2
         draw_pacman(board, acx, acy, max(6, cell_size // 2 - 2), self.mouth_angle, self.facing)
 
-        # Pursuers
         for i, pp in enumerate(self.pursuer_pos):
             if show_truth or self._visible(pp) or self.agent_status.full_reveal():
                 pcx = pp[1] * cell_size + cell_size // 2
@@ -1142,11 +1129,10 @@ class VisualGame:
         div()
         txt("KEYS", ACCENT, "lg")
         for line in ["SPACE  pause",  "R      new maze",   "1-7    algorithm",
-                     "+/-    speed",  "K fog  T walls",    "B split view",
+                     "+/-    speed",  "F fog  D walls",    "B split view",
                      "Z..V pursuer",  "arrows manual",     "ESC    quit"]:
             txt(line, TEXT_DIM, "sm")
         self._draw_minimap()
-
 
     def _draw_minimap(self):
         """
@@ -1156,14 +1142,14 @@ class VisualGame:
         this gives the viewer a god-eye view alongside the
         agent limited fog-of-war perspective.
         """
-        mm_cols = min(PANEL_W - 20, 230)
+        mm_cols = min(PANEL_W - 30, 210)
         mm_rows = int(mm_cols * ROWS / COLS)
         cs      = mm_cols // COLS
         if cs < 2: cs = 2
         mm_w    = cs * COLS
         mm_h    = cs * ROWS
         ox      = MAZE_W + (PANEL_W - mm_w) // 2
-        oy      = MAZE_H - mm_h - 10
+        oy      = MAZE_H - mm_h - 80
 
         for r in range(ROWS):
             for c in range(COLS):
@@ -1239,7 +1225,7 @@ class VisualGame:
             for event in pygame.event.get():
                 if event.type == pygame.QUIT:
                     pygame.quit(); sys.exit()
-                elif self.screen_mode == SCREEN_START:
+                if self.screen_mode == SCREEN_START:
                     result = self.start_screen.handle(event)
                     if result == "start":
                         self.agent_algo = self.start_screen.algo
@@ -1274,31 +1260,19 @@ class VisualGame:
                         elif k == pygame.K_7:
                             self.agent_algo = "manual"
                             self.agent_path = []
-
-                        elif k == pygame.K_z:
-                            self.pursuer_strategy = "random"
-                        elif k == pygame.K_x:
-                            self.pursuer_strategy = "greedy"
-                        elif k == pygame.K_c:
-                            self.pursuer_strategy = "beam"
-                        elif k == pygame.K_v:
-                            self.pursuer_strategy = "astar"
+                        elif k == pygame.K_z: self.pursuer_strategy = "random"
+                        elif k == pygame.K_x: self.pursuer_strategy = "greedy"
+                        elif k == pygame.K_c: self.pursuer_strategy = "beam"
+                        elif k == pygame.K_v: self.pursuer_strategy = "astar"
                         elif k == pygame.K_EQUALS: self.speed = min(20, self.speed + 1)
                         elif k == pygame.K_MINUS:  self.speed = max(1,  self.speed - 1)
-                        elif k == pygame.K_k:
-                            self.fog_of_war = not self.fog_of_war
-                            self._flash(f"fog of war: {'ON' if self.fog_of_war else 'OFF'}", GOOD_C if self.fog_of_war else WARN_C)
-                        elif k == pygame.K_b:
-                            self.show_belief_split = not self.show_belief_split
-                            self._flash(f"split view: {'ON' if self.show_belief_split else 'OFF'}", GOOD_C if self.show_belief_split else WARN_C)
-                        elif k == pygame.K_t:
-                            self.dynamic = not self.dynamic
-                            self.reset()
-                            self._flash(f"dynamic walls: {'ON' if self.dynamic else 'OFF'}", GOOD_C if self.dynamic else WARN_C)
-                        elif k == pygame.K_UP:    self.manual_dir.append((-1,  0))
-                        elif k == pygame.K_DOWN:  self.manual_dir.append(( 1,  0))
-                        elif k == pygame.K_LEFT:  self.manual_dir.append(( 0, -1))
-                        elif k == pygame.K_RIGHT: self.manual_dir.append(( 0,  1))
+                        elif k == pygame.K_f: self.fog_of_war = not self.fog_of_war
+                        elif k == pygame.K_b: self.show_belief_split = not self.show_belief_split
+                        elif k == pygame.K_d: self.dynamic = not self.dynamic; self.reset()
+                        elif k == pygame.K_UP:    self.manual_dir = (-1,  0)
+                        elif k == pygame.K_DOWN:  self.manual_dir = ( 1,  0)
+                        elif k == pygame.K_LEFT:  self.manual_dir = ( 0, -1)
+                        elif k == pygame.K_RIGHT: self.manual_dir = ( 0,  1)
                 elif self.screen_mode == SCREEN_GAMEOVER and self.go_screen:
                     result = self.go_screen.handle(event)
                     if result == "reset": self.reset()
@@ -1307,16 +1281,11 @@ class VisualGame:
                         self.start_screen = StartScreen(self.screen, self.fonts)
                     elif result == "quit": pygame.quit(); sys.exit()
             if self.screen_mode == SCREEN_GAME and not self.paused and not self.game_over:
-                if self.agent_algo == "manual":
-                    while self.manual_dir:
-                        self.tick()
-                        if self.game_over: self.screen_mode = SCREEN_GAMEOVER; break
-                else:
-                    self.tick_acc += dt
-                    ms = 1000 // max(1, self.speed)
-                    while self.tick_acc >= ms:
-                        self.tick(); self.tick_acc -= ms
-                        if self.game_over: self.screen_mode = SCREEN_GAMEOVER; break
+                self.tick_acc += dt
+                ms = 1000 // max(1, self.speed)
+                while self.tick_acc >= ms:
+                    self.tick(); self.tick_acc -= ms
+                    if self.game_over: self.screen_mode = SCREEN_GAMEOVER; break
             if self.screen_mode == SCREEN_START:
                 self.start_screen.draw()
             elif self.screen_mode in (SCREEN_GAME, SCREEN_GAMEOVER):
