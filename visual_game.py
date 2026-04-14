@@ -1146,7 +1146,7 @@ class VisualGame:
         mm_rows = int(mm_cols * ROWS / COLS)
         cs      = mm_cols // COLS
         if cs < 2: cs = 2
-        mm_w    = cs * COLS
+        mm_w    = cs * COLS                                                                                     
         mm_h    = cs * ROWS
         ox      = MAZE_W + PANEL_W - mm_w - 15 
         oy = MAZE_H - mm_h - 2
