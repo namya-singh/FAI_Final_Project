@@ -1,5 +1,5 @@
 import random
-
+# The number is what gets stored in the grid: 0 is a plain floor, 1 is a wall, and so on.
 OPEN    = 0
 WALL    = 1
 TRAP    = 2
@@ -8,6 +8,7 @@ MUD     = 4
 WATER   = 5   
 ROAD    = 6   
 
+# How many steps it costs to walk through each terrain type.
 TERRAIN_COST = {
     OPEN    : 1,
     TRAP    : 1,   
@@ -57,7 +58,8 @@ POWERUP_LABELS = {
     PU_FREEZE : "F",
 }
 
-
+# Keeps track of everything currently happening to the agent.
+# Each effect has a counter that counts down every turn until it wears off.
 class AgentStatus:
 
 
@@ -114,8 +116,9 @@ class AgentStatus:
         if self.reveal_turns  > 0: effects.append(f"REVEAL({self.reveal_turns})")
         return effects
 
+# Same idea as AgentStatus but just for the pursuer.
+# The only thing that can happen to a pursuer is getting frozen by the agent's Freeze power-up.
 class PursuerStatus:
-    """tracks effects on a single pursuer."""
 
     def __init__(self):
         self.frozen_turns = 0

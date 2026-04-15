@@ -28,10 +28,9 @@ SAMPLE_MAZE = """
 #############
 """.strip()
 
-
-
-
-
+# The main game loop: runs one full game from start to finish and returns a summary of what happened.
+# You tell it which agent algorithm to use, which pursuer strategy to fight, and whether
+# the walls should shift mid-game. It handles everything in between.
 def simulate_game(maze, agent_algo, pursuer_strategy,
                   depth_limit=4, dynamic=False, shift_interval=6,
                   verbose=True, step_limit=150):
@@ -176,9 +175,9 @@ def _print_game_stats(stats):
     print(f"  Total time    : {stats['total_time_ms']:.1f} ms")
     print(f"{'═'*44}\n")
 
-
+# Runs every agent against every pursuer and prints the results as a side by side table.
 def run_comparison(maze, dynamic=False):
-    """run all agent algorithms against all pursuer difficulties and print comparison."""
+
     algorithms = ["minimax", "alpha_beta", "expectimax", "lrta", "hill_climb", "beam_search"]
     pursuers   = ["random", "greedy", "beam", "astar"]
 

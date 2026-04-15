@@ -1,3 +1,7 @@
+# This is the entire visual game: everything we see on screen lives here.
+# It handles drawing the maze, animating the agent and pursuers, processing key presses,
+# managing the start screen and game over screen, and running the main game loop.
+
 import pygame
 import pygame.gfxdraw
 import sys

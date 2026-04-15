@@ -16,7 +16,8 @@ from maze import Maze
 from main import simulate_game
 from partial_game import simulate_partial_game
 
-
+# These are all the agents and pursuer types we want to test.
+# Full agents can see the whole maze, partial agents work with fog of war.
 FULL_AGENTS = ["minimax", "alpha_beta", "expectimax", "lrta", "hill_climb", "beam_search"]
 PARTIAL_AGENTS = ["online_astar", "online_lrta", "exploration"]
 PURSUERS = ["random", "greedy", "beam", "astar"]
@@ -29,7 +30,7 @@ DEFAULT_TRIALS = 5
 def ensure_dir(path: Path) -> None:
     path.mkdir(parents=True, exist_ok=True)
 
-
+# Win is 1, anything else (caught or timed out) is 0.
 def outcome_to_score(outcome: str) -> int:
     if outcome == "agent_win":
         return 1
@@ -65,6 +66,8 @@ def normalize_result_value(value: Any) -> Any:
 def normalize_row(row: Dict[str, Any]) -> Dict[str, Any]:
     return {k: normalize_result_value(v) for k, v in row.items()}
 
+# Runs a single full-visibility game with the given settings and packages the result into one row.
+# Each row captures everything about that game: who played, what maze, what happened, how long it took.
 def run_full_once(
     size: int,
     density: float,
@@ -109,7 +112,9 @@ def run_full_once(
     }
     return normalize_row(row)
 
-
+# Same idea as run_full_once but for fog of war games.
+# We also track extra things here like how much of the map was explored
+# and when the Exploration agent switched from mapping to navigating.
 def run_partial_once(
     size: int,
     density: float,
@@ -154,6 +159,10 @@ def run_partial_once(
     }
     return normalize_row(row)
 
+# The main loop for full-visibility experiments.
+# It runs every combination of agent, pursuer, maze size, density, and dynamic setting.
+# If a single game crashes for any reason, it logs the error and keeps going
+# so one bad run doesn't kill the whole batch.
 def run_full_experiments(
     sizes: List[int],
     densities: List[float],
@@ -218,7 +227,7 @@ def run_full_experiments(
 
     return rows
 
-
+# Has an extra loop for visibility radius since that only applies to partial mode.
 def run_partial_experiments(
     sizes: List[int],
     densities: List[float],
@@ -308,7 +317,7 @@ SUMMARY_FIELDS = [
     "avg_phase_switch_step",
 ]
 
-
+# This turns hundreds of individual game results into a clean comparison table.
 def summarize_rows(rows: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     grouped: Dict[Tuple[Any, ...], List[Dict[str, Any]]] = defaultdict(list)
 
@@ -407,7 +416,8 @@ PARTIAL_VISIBILITY_SUMMARY_FIELDS = [
     "avg_wall_shifts",
 ]
 
-
+# Zooms all the way out and collapses everything down to one row per agent
+# so you can see at a glance which agent performed best overall across all conditions.
 def summarize_by_agent(rows: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     grouped: Dict[Tuple[Any, ...], List[Dict[str, Any]]] = defaultdict(list)
 
@@ -472,7 +482,8 @@ def summarize_by_agent_pursuer(rows: List[Dict[str, Any]]) -> List[Dict[str, Any
     out.sort(key=lambda r: (str(r["mode"]), str(r["agent"]), str(r["pursuer"])))
     return out
 
-
+# Specifically for fog of war results as it shows how each agent's performance
+# changes as we give it a wider or narrower field of view.
 def summarize_partial_visibility(rows: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     grouped: Dict[Tuple[Any, ...], List[Dict[str, Any]]] = defaultdict(list)
 
@@ -505,7 +516,7 @@ def summarize_partial_visibility(rows: List[Dict[str, Any]]) -> List[Dict[str, A
     out.sort(key=lambda r: (str(r["agent"]), str(r["dynamic"]), str(r["visibility_radius"])))
     return out
 
-
+# Draws a grid where each cell is colored by win rate: darker means worse, brighter means better.
 def plot_heatmap(matrix, row_labels, col_labels, title, save_path):
     import matplotlib.pyplot as plt
 
@@ -524,6 +535,8 @@ def plot_heatmap(matrix, row_labels, col_labels, title, save_path):
     plt.savefig(save_path, dpi=160)
     plt.close()
 
+# Generates all the charts and saves them to a plots folder.
+# If matplotlib isn't installed it just skips this step quietly instead of crashing.
 def try_make_plots(raw_rows: List[Dict[str, Any]], summary_rows: List[Dict[str, Any]], out_dir: Path) -> None:
     try:
         import matplotlib.pyplot as plt
@@ -731,7 +744,8 @@ def parse_args() -> argparse.Namespace:
 
     return parser.parse_args()
 
-
+# Figures out whether to run static mazes, dynamic mazes, or both
+# based on the flags passed in. Throws an error if someone accidentally sets both flags at once.
 def resolve_dynamic_values(args: argparse.Namespace) -> List[bool]:
     if args.static_only and args.dynamic_only:
         raise ValueError("Cannot set both --static-only and --dynamic-only.")

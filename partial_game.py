@@ -6,7 +6,9 @@ from online_agent    import OnlineAstarAgent, OnlineLRTAAgent, ExplorationAgent
 from game_state      import GameState, Turn
 from adversarial_search import PursuerAI
 
-
+# Runs one full fog of war game from start to finish.
+# The agent can only see a small area around itself and has to figure out the rest as it goes.
+# Everything that happens gets recorded and returned as a stats summary at the end.
 def simulate_partial_game(maze, agent_type="online_astar", pursuer_strategy="greedy",
                            visibility_radius=4, dynamic=False, shift_interval=6,
                            verbose=True, step_limit=200):
@@ -127,7 +129,8 @@ def simulate_partial_game(maze, agent_type="online_astar", pursuer_strategy="gre
 
     return stats
 
-
+# Builds a minimal game state object just so the pursuer AI can figure out its next move.
+# The pursuer always has full knowledge of the maze, only the agent is going in blind.
 def _make_pursuer_state(maze, agent_pos, pursuer_pos):
 
     gs             = object.__new__(GameState)

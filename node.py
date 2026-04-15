@@ -1,4 +1,6 @@
-
+# A single step in the search process. Every time an algorithm considers moving somewhere,
+# it creates a Node for that position. Each Node remembers where it came from
+# so we can trace the full path back to the start once the goal is found.
 class Node:
 
     def __init__(self, state, parent=None, action=None, path_cost=0):

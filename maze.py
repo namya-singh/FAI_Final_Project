@@ -2,6 +2,8 @@ import random
 import copy
 from collections import deque
 
+# A standard grid maze where each cell is either open floor or a wall.
+# The grid is stored as a 2D list of numbers: 0 means open, 1 means wall.
 class Maze:
     OPEN = 0
     WALL = 1
@@ -25,9 +27,10 @@ class Maze:
     def is_walkable(self, pos):
         r, c = pos
         return self._in_bounds(pos) and self.grid[r][c] == self.OPEN
-
+    
+     # Returns every cell the agent can legally step into from the current position.
     def get_neighbors(self, pos):
-        """Returns list of (action, neighbor_pos, step_cost)."""
+
         r, c = pos
         directions = {
             "UP":    (r - 1, c),
@@ -77,7 +80,6 @@ class Maze:
         print("+" + "──" * self.cols + "+")
         print(f"  Start:{self.start}  Goal:{self.goal}  Size:{self.rows}×{self.cols}\n")
  
-
     @classmethod
     def from_string(cls, text):
         
@@ -133,7 +135,9 @@ class Maze:
                     queue.append((nr,nc))
         return False
 
-
+# A maze that changes while the game is being played.
+# Every few steps, a handful of walls swap positions: some walls disappear and new ones appear elsewhere.
+# This forces agents that planned a full route ahead of time to adapt 
 class DynamicMaze(Maze):
     
 

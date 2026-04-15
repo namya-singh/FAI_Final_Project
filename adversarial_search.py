@@ -8,6 +8,7 @@ from typing import Optional
 from game_state import GameState, Turn, _manhattan
 from search import astar, beam_search
 
+# This is the box that holds everything we want to know after an algorithm makes a decision.
 @dataclass
 class AdversarialResult:
     algorithm      : str
@@ -32,7 +33,10 @@ class AdversarialResult:
             f"{'─'*42}"
         )
 
-
+# Minimax: the agent imagines the worst case at every step.
+# It thinks "if I go here, the pursuer will make the smartest possible move against me,
+# then I'll respond with my best move, and so on" up to 4 moves ahead.
+# At the end of that chain, it picks whichever starting move led to the best outcome.
 def minimax(game_state, depth_limit=4):
     
     t0       = time.perf_counter()
@@ -85,7 +89,10 @@ def minimax(game_state, depth_limit=4):
         runtime_ms     = (time.perf_counter() - t0) * 1000,
     )
 
-
+# Alpha-Beta: the smarter, faster version of Minimax.
+# It does the exact same thing but skips any branch where it already knows
+# "this path can't possibly beat what I've already found": no point wasting time there.
+# Because it skips so much, it can look 6 moves ahead in the same time Minimax looks 4.
 def alpha_beta(game_state, depth_limit=6):
    
     t0       = time.perf_counter()
@@ -148,7 +155,10 @@ def alpha_beta(game_state, depth_limit=6):
         pruned         = pruned[0],
     )
 
-
+# Expectimax: like Minimax, but the pursuer isn't assumed to be perfect.
+# Instead of always picking the worst move for the agent, the pursuer is modeled as
+# partly random: it usually goes for you but sometimes wanders. 
+# pursuer_randomness=0.5 means half the time it's smart, half the time it's unpredictable.
 def expectimax(game_state, depth_limit=4, pursuer_randomness=0.5):
 
     t0       = time.perf_counter()
@@ -220,7 +230,10 @@ def expectimax(game_state, depth_limit=4, pursuer_randomness=0.5):
         runtime_ms     = (time.perf_counter() - t0) * 1000,
     )
 
-
+# LRTA Star: no planning ahead at all: just one move at a time.
+# After each move it updates a personal "danger rating" for the cell it just left
+# so it learns over time which spots are risky and avoids going back to them.
+# This makes it naturally good at shifting wall mazes since it never follows a plan that can go stale.
 class LRTAStar:
 
 
@@ -268,7 +281,9 @@ class LRTAStar:
 
 
 
-
+# PursuerAI: controls how the pursuer chases the agent.
+# Four difficulty levels from completely random to perfectly optimal.
+# The same class handles all four so the game can swap difficulty on the fly.
 
 class PursuerAI:
     

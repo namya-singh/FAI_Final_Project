@@ -7,7 +7,7 @@ from typing import List
 
 from node import Node
 
-
+# stores everything worth knowing after an algorithm finishes: did it find a path, how long did it take, how many cells did it look at.
 @dataclass
 class SearchResult:
     algorithm      : str
@@ -51,7 +51,8 @@ HEURISTICS = {
     "zero"      : heuristic_zero,
 }
 
-
+# Takes a node and generates all the nodes you can reach from it in one step.
+# Each child remembers its parent so we can trace the full path back later.
 def _expand(node, maze):
     for action, next_state, step_cost in maze.get_neighbors(node.state):
         yield Node(state=next_state, parent=node, action=action,
@@ -88,7 +89,8 @@ def bfs(maze, start=None):
     return SearchResult("BFS", runtime_ms=(time.perf_counter()-t0)*1000, nodes_expanded=expanded)
 
 
-
+# Uses much less memory than BFS but can wander far down dead ends
+# and doesn't guarantee the shortest path.
 def dfs(maze, start=None):
     t0       = time.perf_counter()
     root     = Node(start or maze.start)
@@ -116,7 +118,8 @@ def dfs(maze, start=None):
 
     return SearchResult("DFS", runtime_ms=(time.perf_counter()-t0)*1000, nodes_expanded=expanded)
 
-
+# On a maze where some cells cost more to walk through, this finds the truly cheapest route
+# rather than just the one with the fewest steps.
 def ucs(maze, start=None):
     t0      = time.perf_counter()
     root    = Node(start or maze.start)
@@ -146,7 +149,9 @@ def ucs(maze, start=None):
 
     return SearchResult("UCS", runtime_ms=(time.perf_counter()-t0)*1000, nodes_expanded=expanded)
 
-
+# It combines the actual cost to get somewhere with a guess of how far the goal still is.
+# By always processing the node that looks most promising overall, it finds the shortest
+# path while exploring far fewer cells than BFS or UCS.
 def astar(maze, heuristic_name="manhattan", start=None):
    
     h       = HEURISTICS[heuristic_name]
@@ -284,7 +289,10 @@ def beam_search(maze, beam_width=3, heuristic_name="manhattan", start=None):
                         )
 
 
-
+# Weighted A star: a faster but slightly less perfect version of A star.
+# It multiplies the distance guess by a weight greater than 1, making the algorithm
+# more aggressive about heading toward the goal and less careful about finding the absolute shortest path.
+# The tradeoff: explores far fewer cells and runs much faster, but the path might be a little longer.
 def weighted_astar(maze, heuristic_name="manhattan", weight=1.5, start=None):
     
     h        = HEURISTICS[heuristic_name]
@@ -329,7 +337,11 @@ def weighted_astar(maze, heuristic_name="manhattan", weight=1.5, start=None):
 
 
 
-
+# IDA star: finds the same optimal path as A star but uses almost no memory.
+# Instead of storing every node it has ever visited, it runs repeated depth first searches
+# with a growing cost limit. Each pass only follows paths where the total estimated cost
+# stays within the current threshold, then raises the threshold and tries again.
+# The right choice when the maze is so large that A star would run out of memory.
 def idastar(maze, heuristic_name="manhattan", start=None):
    
     h       = HEURISTICS[heuristic_name]

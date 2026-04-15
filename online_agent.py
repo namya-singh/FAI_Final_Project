@@ -7,7 +7,8 @@ from partial_maze import PartialMaze, UNKNOWN, WALL, OPEN
 def _manhattan(a, b):
     return abs(a[0] - b[0]) + abs(a[1] - b[1])
 
-
+# The smartest fog of war agent. It can't see the full maze but it doesn't let that stop it.
+# Every single step it replans its entire path from scratch using only what it has discovered so far.
 class OnlineAstarAgent:
     
 
@@ -113,7 +114,9 @@ class OnlineAstarAgent:
         self.replans = 0
         self.steps   = 0
 
-
+# The lightweight fog of war agent. No full path planning, just one step at a time.
+# It keeps a personal notebook of danger scores for every cell it has visited
+# and uses those to avoid getting stuck in loops or dead ends.
 class OnlineLRTAAgent:
    
     def __init__(self, partial_maze):
@@ -165,7 +168,9 @@ class OnlineLRTAAgent:
         if partial_maze:
             self.pm = partial_maze
 
-
+# A two phase agent that maps the maze before going for the goal.
+# Phase 1 — explore: deliberately wanders toward the edges of what it knows to build up a map.
+# Phase 2 — navigate: once the goal is spotted, switches to running A star straight toward it.
 class ExplorationAgent:
     
 

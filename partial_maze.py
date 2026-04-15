@@ -4,6 +4,9 @@ UNKNOWN = -1
 OPEN    =  0
 WALL    =  1
 
+# The agent's personal map of the maze: built up gradually as it explores.
+# At the start everything is marked unknown. As the agent moves around,
+# nearby cells get revealed and the picture slowly fills in.
 class PartialMaze:
  
 
@@ -26,6 +29,7 @@ class PartialMaze:
 
         self.update_belief(self.start)
 
+    # Returns every cell the agent can currently see from its position.
     def get_visible_cells(self, pos):
     
         r, c = pos
@@ -37,7 +41,9 @@ class PartialMaze:
                     if 0 <= nr < self.rows and 0 <= nc < self.cols:
                         visible.append((nr, nc))
         return visible
-
+    
+    # Called every time the agent moves: looks at all the cells now in range and
+    # copies their true values onto the belief map. Returns only the newly uncovered cells.
     def update_belief(self, agent_pos):
 
         newly_revealed = set()

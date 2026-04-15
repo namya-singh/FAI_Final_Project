@@ -3,6 +3,8 @@ from partial_maze import PartialMaze, UNKNOWN, OPEN, WALL
 from online_agent import OnlineAstarAgent, OnlineLRTAAgent, ExplorationAgent
 from partial_game import simulate_partial_game, run_partial_comparison
 
+# Spins up a random maze with sensible defaults so every test starts from the same kind of setup.
+# Pass in different sizes, densities, or seeds when a test needs something specific.
 def make_maze(size=13, density=0.25, seed=7):
     return Maze.generate_random(size, size, density, seed=seed)
 
@@ -18,6 +20,8 @@ def assert_between(val, lo, hi, msg=""):
 def pass_msg(name):
     print(f"  PASS  {name}")
 
+# Spins up a random maze with sensible defaults so every test starts from the same kind of setup.
+# Pass in different sizes, densities, or seeds when a test needs something specific.
 def test_belief_map_init():
     maze = make_maze()
     pm   = PartialMaze(maze, visibility_radius=0)
@@ -29,7 +33,8 @@ def test_belief_map_init():
     pass_msg("belief map initialized to UNKNOWN outside start radius")
 
 
-
+# Verifies that every cell within the visibility radius actually gets uncovered after a move.
+# If any nearby cell is still unknown when it should be visible, something is broken.
 def test_update_belief_reveals_cells():
     maze   = make_maze()
     radius = 3
@@ -45,7 +50,8 @@ def test_update_belief_reveals_cells():
                                 f"cell ({nr},{nc}) should be revealed")
     pass_msg("update_belief reveals all cells within radius")
 
-
+# Makes sure the explored percentage never goes backward as the agent moves.
+# It should either stay the same or go up, it should never shrink.
 def test_exploration_increases():
     maze  = make_maze()
     pm    = PartialMaze(maze, visibility_radius=4)
@@ -98,6 +104,8 @@ def test_believed_neighbors_bounds():
         assert_eq(cost, 1, "step cost must be 1")
     pass_msg("get_believed_neighbors returns in-bounds positions")
 
+# Checks that each agent actually returns a real move, a valid position on the grid
+# and one of the five expected direction strings. Catches crashes or no sense outputs immediately.
 def test_online_astar_valid_move():
     maze  = make_maze()
     pm    = PartialMaze(maze, visibility_radius=4)
@@ -194,7 +202,9 @@ def test_dynamic_partial_game():
     assert_true(stats["outcome"] in ("agent_win", "pursuer_win", "timeout"))
     pass_msg("partial game with dynamic maze runs without errors")
 
-
+# Runs every test one by one and keeps track of what passed and what failed.
+# A single crash in one test doesn't stop the rest from running and
+# at the end we get a clean summary showing exactly how many passed and failed.
 def run_all_tests():
     tests = [
         test_belief_map_init,

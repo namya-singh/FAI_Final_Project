@@ -1,12 +1,16 @@
 import copy
 from enum import Enum
 
-
+# Keeps track of whose turn it is: the agent moves first, then the pursuer.
+# This alternates back and forth every step throughout the game.
 class Turn(Enum):
     AGENT   = "agent"
     PURSUER = "pursuer"
 
-
+# A snapshot of everything happening in the game at one moment in time.
+# Every time someone moves, we create a brand new GameState instead of changing the old one.
+# This is important for the AI algorithms as they need to explore "what if" scenarios
+# without accidentally messing up the real game state.
 class GameState:
     
 
