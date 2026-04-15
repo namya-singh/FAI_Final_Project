@@ -106,7 +106,7 @@ Press a number key to instantly switch which algorithm the agent uses:
 Press `7` to switch to manual mode. Then use the **arrow keys** to move the agent yourself. Try to reach the goal (the green cell) before the pursuer catches you.
 
 Tips:
-- Watch the pursuer's color — it flashes when it is about to move.
+- Watch the pursuer's color: it flashes when it is about to move.
 - Power-ups on the map can give you an edge (see the Power-Ups section below).
 - If you step on a trap (red-orange cell), you freeze for 3 turns.
 
