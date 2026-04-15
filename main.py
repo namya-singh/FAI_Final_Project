@@ -1,15 +1,3 @@
-"""
-main.py — game runner, algorithm comparison, and visual simulation
-project: adversarial maze navigation
-authors: vikramaditya sogani & namya singh
-
-usage:
-    python main.py --visual                         # launch pygame visual game
-    python main.py --visual --algo astar --pursuers 2
-    python main.py --compare                        # terminal comparison table
-    python main.py --algo alpha_beta --pursuer astar
-"""
-
 import argparse
 import time
 from maze              import Maze, DynamicMaze
@@ -21,7 +9,7 @@ from adversarial_search import (
 )
 
 
-#  sample maze
+
 
 
 SAMPLE_MAZE = """
@@ -41,31 +29,15 @@ SAMPLE_MAZE = """
 """.strip()
 
 
-#  game simulation
+
 
 
 def simulate_game(maze, agent_algo, pursuer_strategy,
                   depth_limit=4, dynamic=False, shift_interval=6,
                   verbose=True, step_limit=150):
-    """
-    runs one full game between agent and pursuer.
+   
 
-    args:
-        maze             : Maze instance
-        agent_algo       : 'minimax' | 'alpha_beta' | 'expectimax' | 'lrta' | 'hill_climb' | 'beam_search'
-        pursuer_strategy : 'random' | 'greedy' | 'astar' | 'beam'
-        depth_limit      : search depth for tree-based algorithms
-        dynamic          : if True, walls shift during the game
-        shift_interval   : steps between wall shifts (only if dynamic=True)
-        verbose          : print each step
-        step_limit       : max steps before timeout
-
-    returns:
-        dict with game stats
-    """
-
-    # Set up maze (dynamic or static)
-    # setting up maze (dynamic or static)
+  
     if dynamic:
         dyn_maze = DynamicMaze.from_static(maze, shift_interval=shift_interval,
                                            num_shifts=2, seed=42)
@@ -73,7 +45,6 @@ def simulate_game(maze, agent_algo, pursuer_strategy,
     else:
         active_maze = maze
 
-    # pursuer at opposite corner from agent
     pursuer_start = (active_maze.rows - 1, 0) \
         if active_maze.start == (0, 0) else (0, active_maze.cols - 1)
     # pursuer start is walkable
@@ -104,7 +75,7 @@ def simulate_game(maze, agent_algo, pursuer_strategy,
 
     while not state.is_terminal():
 
-        # shift walls if dynamic
+        
         shifted = False
         if dynamic:
             protected = {state.agent_pos, state.pursuer_pos}
@@ -112,7 +83,7 @@ def simulate_game(maze, agent_algo, pursuer_strategy,
             if shifted:
                 stats["wall_shifts"] += 1
 
-        # agent move
+    
         t0 = time.perf_counter()
 
         if agent_algo == "minimax":
@@ -158,7 +129,7 @@ def simulate_game(maze, agent_algo, pursuer_strategy,
         else:
             raise ValueError(f"unknown agent_algo: {agent_algo}")
 
-        # safety check
+     
         if new_agent_pos is None or not active_maze.is_walkable(new_agent_pos):
             new_agent_pos = state.agent_pos
 
@@ -168,7 +139,7 @@ def simulate_game(maze, agent_algo, pursuer_strategy,
         if state.is_terminal():
             break
 
-        # pursuer move
+    
         p_action, new_pursuer_pos = pursuer.choose_move(state)
         state = state.apply_pursuer_move(new_pursuer_pos)
 
@@ -178,7 +149,6 @@ def simulate_game(maze, agent_algo, pursuer_strategy,
             wall_note = " [walls shifted]" if shifted else ""
             state.display(label=f"Step {stats['steps']}{wall_note}")
 
-    # record outcome
     if state.agent_won():
         stats["outcome"] = "agent_win"
     elif state.pursuer_won():
@@ -207,9 +177,6 @@ def _print_game_stats(stats):
     print(f"{'═'*44}\n")
 
 
-#  comparison table
-
-
 def run_comparison(maze, dynamic=False):
     """run all agent algorithms against all pursuer difficulties and print comparison."""
     algorithms = ["minimax", "alpha_beta", "expectimax", "lrta", "hill_climb", "beam_search"]
@@ -235,13 +202,9 @@ def run_comparison(maze, dynamic=False):
                   f"{stats['total_time_ms']:>10.1f}")
     print(f"{'─'*70}\n")
 
-# Greedy Fallback for hill_climb & beam_search
+
 def greedy_fallback(maze, current_position):
-    """
-    Returns a single step greedy move toward the goal from current position
-    Used as a fallback when hill climbing or beam search cannot produce
-    a valid forward path from mid-game state
-    """
+   
     neighbor = maze.get_neighbors(current_position)
     if not neighbor:
         return current_position
@@ -251,7 +214,7 @@ def greedy_fallback(maze, current_position):
     )
     return best_position
 
-#  entry point
+
 
 
 def main():
@@ -275,7 +238,7 @@ def main():
                         help="disable fog of war in visual mode")
     args = parser.parse_args()
 
-    # visual mode — launch pygame window
+    
     if args.visual:
         from visual_game import launch
         launch(
@@ -287,7 +250,7 @@ def main():
         )
         return
 
-    # terminal mode
+    
     maze = Maze.generate_random(args.size, args.size, args.density, seed=args.seed)
 
     if args.compare:
@@ -298,7 +261,7 @@ def main():
         simulate_game(maze, args.algo, args.pursuer,
                       dynamic=args.dynamic, verbose=True)
     else:
-        # default demo: one game with each algorithm, then comparison table
+        
         print("\n" + "═"*50)
         print("  DEMO: Alpha-Beta agent vs Greedy pursuer (Static)")
         print("═"*50)

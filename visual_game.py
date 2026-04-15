@@ -1,9 +1,3 @@
-"""
-visual_game.py - visual simulation for adversial maze navigation
-project: adversarial maze navigation
-authors: vikramaditya sogani & namya singh
-"""
-
 import pygame
 import pygame.gfxdraw
 import sys
@@ -496,11 +490,6 @@ class VisualGame:
     def _manhattan(self, a, b): return abs(a[0]-b[0]) + abs(a[1]-b[1])
 
     def _planning_maze(self, start=None, goal=None):
-        """
-        Builds a temporary Maze for search algorithms.
-        All non-wall gameplay cells are treated as OPEN so that
-        traps, power-ups, mud, water, and road remain traversable.
-        """
         s = tuple(start or self.agent_pos)
         g = tuple(goal or self.goal_pos)
 
@@ -516,10 +505,6 @@ class VisualGame:
         return min(self.pursuer_pos, key=lambda pp: self._manhattan(self.agent_pos, pp))
 
     def _make_adv_state(self):
-        """
-        Builds a lightweight GameState for adversarial-search algorithms.
-        Uses the nearest pursuer as the adversarial opponent in visual mode.
-        """
         pursuer = tuple(self._nearest_pursuer())
         temp_maze = self._planning_maze(start=self.agent_pos, goal=self.goal_pos)
         return GameState(
@@ -1135,13 +1120,7 @@ class VisualGame:
         self._draw_minimap()
 
     def _draw_minimap(self):
-        """
-        draws a scaled-down true maze overview in the side panel.
-        shows walls, open cells, agent and pursuer positions,
-        and the goal — ignoring fog of war entirely.
-        this gives the viewer a god-eye view alongside the
-        agent limited fog-of-war perspective.
-        """
+    
         mm_cols = min(PANEL_W - 30, 80)
         mm_rows = int(mm_cols * ROWS / COLS)
         cs      = mm_cols // COLS

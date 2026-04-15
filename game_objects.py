@@ -1,48 +1,30 @@
-"""
-game_objects.py — game objects: traps, power-ups, weighted terrain
-project: adversarial maze navigation
-authors: vikramaditya sogani & namya singh
-
-objects that make the maze more complex:
-  Trap       — freezes agent for N turns when stepped on
-  PowerUp    — gives agent a temporary ability
-  Terrain    — weighted cells with different movement costs
-"""
-
 import random
-
-
-# ─────────────────────────────────────────────
-#  cell type constants (extend maze OPEN=0 WALL=1)
-# ─────────────────────────────────────────────
 
 OPEN    = 0
 WALL    = 1
 TRAP    = 2
 POWERUP = 3
-MUD     = 4   # cost 3 to traverse
-WATER   = 5   # cost 2 to traverse
-ROAD    = 6   # cost 0.5 to traverse (fast lane)
+MUD     = 4   
+WATER   = 5   
+ROAD    = 6   
 
-# step costs for each terrain type
 TERRAIN_COST = {
     OPEN    : 1,
-    TRAP    : 1,   # cost is paid, then trap triggers
+    TRAP    : 1,   
     POWERUP : 1,
     MUD     : 3,
     WATER   : 2,
-    ROAD    : 1,   # visually distinct but same cost (simplification)
+    ROAD    : 1,   
 }
 
-# display colors (R,G,B) for pygame
 CELL_COLORS = {
-    OPEN    : (15,  17,  35),   # dark navy
-    WALL    : (45,  48,  70),   # slate
-    TRAP    : (180, 60,  40),   # red-orange
-    POWERUP : (130, 60, 200),   # purple
-    MUD     : (90,  65,  30),   # brown
-    WATER   : (30,  80, 150),   # blue
-    ROAD    : (40,  60,  40),   # dark green
+    OPEN    : (15,  17,  35),   
+    WALL    : (45,  48,  70),   
+    TRAP    : (180, 60,  40),   
+    POWERUP : (130, 60, 200),   
+    MUD     : (90,  65,  30),   
+    WATER   : (30,  80, 150),   
+    ROAD    : (40,  60,  40),   
 }
 
 CELL_LABELS = {
@@ -54,14 +36,10 @@ CELL_LABELS = {
 }
 
 
-# ─────────────────────────────────────────────
-#  power-up types
-# ─────────────────────────────────────────────
-
-PU_REVEAL   = "reveal"    # reveals full map for 10 steps
-PU_SPEED    = "speed"     # agent moves twice per turn for 8 steps
-PU_SHIELD   = "shield"    # immunity to traps for 6 steps
-PU_FREEZE   = "freeze"    # freezes pursuer for 5 steps
+PU_REVEAL   = "reveal"    
+PU_SPEED    = "speed"     
+PU_SHIELD   = "shield"    
+PU_FREEZE   = "freeze"    
 
 POWERUP_TYPES = [PU_REVEAL, PU_SPEED, PU_SHIELD, PU_FREEZE]
 
@@ -80,21 +58,14 @@ POWERUP_LABELS = {
 }
 
 
-# ─────────────────────────────────────────────
-#  agent status tracker
-# ─────────────────────────────────────────────
-
 class AgentStatus:
-    """
-    tracks all active effects on the agent.
-    call tick() each game step to decrement counters.
-    """
+
 
     def __init__(self):
-        self.frozen_turns  = 0    # cant move
-        self.speed_turns   = 0    # moves twice per turn
-        self.shield_turns  = 0    # immune to traps
-        self.reveal_turns  = 0    # full map revealed
+        self.frozen_turns  = 0    
+        self.speed_turns   = 0    
+        self.shield_turns  = 0    
+        self.reveal_turns  = 0    
         self.score         = 0
         self.powerups_collected = []
         self.traps_hit     = 0
@@ -108,7 +79,7 @@ class AgentStatus:
 
     def apply_trap(self):
         if self.shield_turns > 0:
-            return False   # blocked by shield
+            return False   
         self.frozen_turns = 3
         self.traps_hit += 1
         return True
@@ -123,7 +94,7 @@ class AgentStatus:
         elif pu_type == PU_SHIELD:
             self.shield_turns = 6
         elif pu_type == PU_FREEZE:
-            return True   # caller handles pursuer freeze
+            return True   
         return False
 
     def is_frozen(self):
@@ -143,11 +114,6 @@ class AgentStatus:
         if self.reveal_turns  > 0: effects.append(f"REVEAL({self.reveal_turns})")
         return effects
 
-
-# ─────────────────────────────────────────────
-#  pursuer status
-# ─────────────────────────────────────────────
-
 class PursuerStatus:
     """tracks effects on a single pursuer."""
 
@@ -164,25 +130,17 @@ class PursuerStatus:
         return self.frozen_turns > 0
 
 
-# ─────────────────────────────────────────────
-#  obstacle placer
-# ─────────────────────────────────────────────
-
 def place_objects(grid, rows, cols, start, goal, pursuer_starts,
                   num_traps=10, num_powerups=6,
                   num_mud=8, num_water=6, num_road=5,
                   seed=None):
-    """
-    places traps, power-ups, and terrain objects on the grid.
-    never places on start, goal, or pursuer start positions.
-    returns dict mapping (row,col) -> powerup_type for POWERUP cells.
-    """
+
     if seed is not None:
         random.seed(seed)
 
     protected = {start, goal} | set(pursuer_starts)
 
-    # collect all open cells eligible for objects
+    
     candidates = [
         (r, c) for r in range(rows) for c in range(cols)
         if grid[r][c] == OPEN and (r, c) not in protected
@@ -190,7 +148,7 @@ def place_objects(grid, rows, cols, start, goal, pursuer_starts,
     random.shuffle(candidates)
 
     idx = 0
-    powerup_map = {}   # (r,c) -> pu_type
+    powerup_map = {}   
 
     def place(cell_type, count):
         nonlocal idx

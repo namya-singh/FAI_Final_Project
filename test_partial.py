@@ -1,25 +1,7 @@
-"""
-test_partial.py — unit tests for partial observability system
-project: adversarial maze navigation
-authors: vikramaditya sogani & namya singh
-
-tests cover:
-  - belief map initialization (all cells start as UNKNOWN)
-  - fog of war updates correctly after agent moves
-  - exploration percentage increases monotonically
-  - goal detection once goal enters visibility radius
-  - online agents return valid moves
-  - full game simulation produces valid outcomes
-  - dynamic maze belief updates after wall shifts
-"""
-
 from maze import Maze, DynamicMaze
 from partial_maze import PartialMaze, UNKNOWN, OPEN, WALL
 from online_agent import OnlineAstarAgent, OnlineLRTAAgent, ExplorationAgent
 from partial_game import simulate_partial_game, run_partial_comparison
-
-
-# ── helpers ──────────────────────────────────────────────────────────
 
 def make_maze(size=13, density=0.25, seed=7):
     return Maze.generate_random(size, size, density, seed=seed)
@@ -36,9 +18,6 @@ def assert_between(val, lo, hi, msg=""):
 def pass_msg(name):
     print(f"  PASS  {name}")
 
-
-# ── test 1: belief map starts fully unknown ───────────────────────────
-
 def test_belief_map_init():
     maze = make_maze()
     pm   = PartialMaze(maze, visibility_radius=0)
@@ -50,7 +29,6 @@ def test_belief_map_init():
     pass_msg("belief map initialized to UNKNOWN outside start radius")
 
 
-# ── test 2: update_belief reveals cells within radius ─────────────────
 
 def test_update_belief_reveals_cells():
     maze   = make_maze()
@@ -67,8 +45,6 @@ def test_update_belief_reveals_cells():
                                 f"cell ({nr},{nc}) should be revealed")
     pass_msg("update_belief reveals all cells within radius")
 
-
-# ── test 3: exploration percentage increases monotonically ────────────
 
 def test_exploration_increases():
     maze  = make_maze()
@@ -94,18 +70,12 @@ def test_exploration_increases():
     assert_true(ever_increased, "explored% must increase at some point")
     pass_msg("exploration percentage increases monotonically")
 
-
-# ── test 4: cells_explored returns value in [0, 1] ───────────────────
-
 def test_cells_explored_range():
     maze = make_maze()
     pm   = PartialMaze(maze, visibility_radius=4)
     val  = pm.cells_explored()
     assert_between(val, 0.0, 1.0, "cells_explored must be in [0, 1]")
     pass_msg("cells_explored returns value in valid range")
-
-
-# ── test 5: goal becomes known once agent is close enough ─────────────
 
 def test_goal_detection():
     rows, cols = 7, 7
@@ -118,9 +88,6 @@ def test_goal_detection():
                 "goal at distance 4 should be visible from start")
     pass_msg("goal detected when within visibility radius")
 
-
-# ── test 6: get_believed_neighbors returns only valid positions ────────
-
 def test_believed_neighbors_bounds():
     maze = make_maze()
     pm   = PartialMaze(maze, visibility_radius=4)
@@ -130,9 +97,6 @@ def test_believed_neighbors_bounds():
                     f"neighbor ({r},{c}) out of bounds")
         assert_eq(cost, 1, "step cost must be 1")
     pass_msg("get_believed_neighbors returns in-bounds positions")
-
-
-# ── test 7: online a* agent returns valid action and position ─────────
 
 def test_online_astar_valid_move():
     maze  = make_maze()
@@ -145,9 +109,6 @@ def test_online_astar_valid_move():
     assert_true(action in ("UP","DOWN","LEFT","RIGHT","STAY"),
                 f"invalid action: {action}")
     pass_msg("OnlineAstarAgent returns valid action and position")
-
-
-# ── test 8: online lrta agent returns valid move ──────────────────────
 
 def test_online_lrta_valid_move():
     maze  = make_maze()
@@ -162,8 +123,6 @@ def test_online_lrta_valid_move():
     pass_msg("OnlineLRTAAgent returns valid action and position")
 
 
-# ── test 9: exploration agent returns valid move ──────────────────────
-
 def test_exploration_agent_valid_move():
     maze  = make_maze()
     pm    = PartialMaze(maze, visibility_radius=4)
@@ -174,8 +133,6 @@ def test_exploration_agent_valid_move():
                 "ExplorationAgent returned out-of-bounds position")
     pass_msg("ExplorationAgent returns valid action and position")
 
-
-# ── test 10: simulate_partial_game returns valid outcome ──────────────
 
 def test_simulate_outcome():
     maze  = make_maze()
@@ -191,8 +148,6 @@ def test_simulate_outcome():
                    "cells_explored must be in [0, 1]")
     pass_msg("simulate_partial_game returns valid outcome and stats")
 
-
-# ── test 11: dynamic maze belief updates after wall shift ─────────────
 
 def test_dynamic_belief_update():
     base  = make_maze()
@@ -214,8 +169,6 @@ def test_dynamic_belief_update():
     pass_msg("dynamic maze belief map can update after wall shift")
 
 
-# ── test 12: all three agents complete without crashing ───────────────
-
 def test_all_agents_run():
     maze   = make_maze(size=11, density=0.2, seed=99)
     agents = ["online_astar", "online_lrta", "exploration"]
@@ -230,8 +183,6 @@ def test_all_agents_run():
     pass_msg("all three online agents complete without crashing")
 
 
-# ── test 13: partial game with dynamic maze runs correctly ────────────
-
 def test_dynamic_partial_game():
     maze  = make_maze()
     stats = simulate_partial_game(
@@ -243,8 +194,6 @@ def test_dynamic_partial_game():
     assert_true(stats["outcome"] in ("agent_win", "pursuer_win", "timeout"))
     pass_msg("partial game with dynamic maze runs without errors")
 
-
-# ── run all tests ─────────────────────────────────────────────────────
 
 def run_all_tests():
     tests = [

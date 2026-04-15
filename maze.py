@@ -1,21 +1,6 @@
-"""
-maze.py — Static + Dynamic Maze Environments
-Project: Adversarial Maze Navigation
-Authors: VikramAditya Sogani & Namya Singh
-
-Classes:
-  Maze        — original static 2D grid maze
-  DynamicMaze — extends Maze; walls shift every N steps
-"""
-
 import random
 import copy
 from collections import deque
-
-
-
-#  base maze(its static)
-
 
 class Maze:
     OPEN = 0
@@ -60,11 +45,7 @@ class Maze:
         return pos == self.goal
 
     def display(self, agent=None, pursuer=None, path=None, visited=None, label=""):
-        """
-        Prints maze to terminal.
-        Legend:  # wall  . open  S start  G goal
-                 A agent  P pursuer  * path  o visited
-        """
+       
         path_set    = set(path)    if path    else set()
         visited_set = set(visited) if visited else set()
 
@@ -95,15 +76,11 @@ class Maze:
             print(row_str)
         print("+" + "──" * self.cols + "+")
         print(f"  Start:{self.start}  Goal:{self.goal}  Size:{self.rows}×{self.cols}\n")
-
-    #Factory: load from string 
+ 
 
     @classmethod
     def from_string(cls, text):
-        """
-        Load maze from multi-line string.
-        '#'=wall, ' '/'.'=open, 'S'=start, 'G'=goal
-        """
+        
         lines = text.strip().splitlines()
         grid  = []
         start = goal = None
@@ -122,11 +99,8 @@ class Maze:
         assert start and goal, "Maze string must contain 'S' and 'G'"
         return cls(grid, start, goal)
 
-    # Factory: random generation
-
     @classmethod
     def generate_random(cls, rows=15, cols=15, obstacle_density=0.28, seed=None):
-        """Generates a random maze guaranteed to have a path from start to goal."""
         if seed is not None:
             random.seed(seed)
         start = (0, 0)
@@ -154,67 +128,36 @@ class Maze:
                 return True
             for dr, dc in [(-1,0),(1,0),(0,-1),(0,1)]:
                 nr, nc = r+dr, c+dc
-                # treat any non-wall cell as walkable (0=open, 2=trap, 3=powerup, 4=mud, 5=water, 6=road)
                 if 0<=nr<rows and 0<=nc<cols and grid[nr][nc]!=1 and (nr,nc) not in visited:
                     visited.add((nr,nc))
                     queue.append((nr,nc))
         return False
 
 
-#  dynamic maze (walls shift every N steps)
-
-
 class DynamicMaze(Maze):
-    """
-    Extends Maze: a fixed number of walls shift positions every `shift_interval` steps.
     
-    Rules:
-      - Only interior non-border cells can become walls or open up
-      - Start, goal, agent position, and pursuer position are always protected
-      - Connectivity (start ↔ goal) is re-verified after every shift; if broken, shift is rolled back
-    
-    Args:
-        grid             : 2D list of 0s and 1s
-        start            : (row, col)
-        goal             : (row, col)
-        shift_interval   : how many game steps between wall shifts (default: 5)
-        num_shifts       : how many wall cells move per shift event (default: 2)
-        seed             : random seed for reproducibility
-    """
 
     def __init__(self, grid, start, goal, shift_interval=5, num_shifts=2, seed=None):
         super().__init__(grid, start, goal)
         self.shift_interval = shift_interval
         self.num_shifts     = num_shifts
         self.step_count     = 0
-        self.shift_history  = []   # list of shift events for analysis
+        self.shift_history  = []   
         if seed is not None:
             random.seed(seed)
 
     def step(self, protected_positions=None):
-        """
-        Advance the maze by one game step.
-        If step_count hits shift_interval, trigger a wall shift.
         
-        Args:
-            protected_positions : set of (row,col) that must stay open (agent + pursuer)
-        
-        Returns:
-            shifted (bool) : True if a wall shift occurred this step
-        """
         self.step_count += 1
         if self.step_count % self.shift_interval == 0:
             return self._shift_walls(protected_positions or set())
         return False
 
     def _shift_walls(self, protected):
-        """
-        Moves `num_shifts` walls to new random open positions.
-        Rolls back if connectivity breaks.
-        """
+        
         always_open = {self.start, self.goal} | set(protected)
 
-        # Candidate walls that can be removed (interior, not protecting anything)
+        
         removable_walls = [
             (r, c)
             for r in range(1, self.rows - 1)
@@ -222,7 +165,7 @@ class DynamicMaze(Maze):
             if self.grid[r][c] == self.WALL
         ]
 
-        # Candidate open cells that can become walls (plain floor only, not terrain/objects)
+        
         fillable_cells = [
             (r, c)
             for r in range(1, self.rows - 1)
@@ -237,13 +180,13 @@ class DynamicMaze(Maze):
         walls_to_remove = random.sample(removable_walls, n)
         cells_to_fill   = random.sample(fillable_cells,  n)
 
-        # Apply tentative shift
+        
         for (r, c) in walls_to_remove:
             self.grid[r][c] = self.OPEN
         for (r, c) in cells_to_fill:
             self.grid[r][c] = self.WALL
 
-        # Verify connectivity — rollback if broken
+        
         if not self._path_exists(self.grid, self.start, self.goal, self.rows, self.cols):
             for (r, c) in walls_to_remove:
                 self.grid[r][c] = self.WALL
@@ -256,9 +199,8 @@ class DynamicMaze(Maze):
         return True
 
     def clone(self):
-        """Returns a deep copy of this DynamicMaze (used by search algorithms for lookahead)."""
         new = DynamicMaze(
-            [row[:] for row in self.grid],  # deep copy grid
+            [row[:] for row in self.grid],  
             self.start, self.goal,
             self.shift_interval, self.num_shifts
         )
@@ -268,5 +210,5 @@ class DynamicMaze(Maze):
 
     @classmethod
     def from_static(cls, maze, shift_interval=5, num_shifts=2, seed=None):
-        """Upgrade a static Maze into a DynamicMaze."""
+
         return cls([row[:] for row in maze.grid], maze.start, maze.goal, shift_interval, num_shifts, seed)

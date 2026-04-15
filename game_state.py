@@ -8,22 +8,7 @@ class Turn(Enum):
 
 
 class GameState:
-    """
-    Full state of one moment in the adversarial maze game.
-
-    Win conditions:
-      - Agent wins  : agent reaches maze.goal
-      - Pursuer wins: pursuer occupies same cell as agent (caught)
-      - Draw/timeout: step_limit exceeded
-
-    Args:
-        maze       : Maze or DynamicMaze instance
-        agent_pos  : (row, col) of the agent
-        pursuer_pos: (row, col) of the pursuer
-        turn       : whose move it is (Turn.AGENT or Turn.PURSUER)
-        step       : current step number
-        step_limit : maximum steps before timeout (default 200)
-    """
+    
 
     def __init__(self, maze, agent_pos, pursuer_pos,
                  turn=Turn.AGENT, step=0, step_limit=200):
@@ -34,13 +19,13 @@ class GameState:
         self.step        = step
         self.step_limit  = step_limit
 
-    # terminal checks 
+  
 
     def is_terminal(self):
         return (
-            self.agent_pos == self.maze.goal        or   # agent wins
-            self.agent_pos == self.pursuer_pos      or   # pursuer catches agent
-            self.step >= self.step_limit                  # timeout
+            self.agent_pos == self.maze.goal        or   
+            self.agent_pos == self.pursuer_pos      or   
+            self.step >= self.step_limit                  
         )
 
     def agent_won(self):
@@ -52,15 +37,10 @@ class GameState:
     def is_timeout(self):
         return self.step >= self.step_limit and not self.agent_won() and not self.pursuer_won()
 
-    # utility 
+    
 
     def utility(self):
-        """
-        Terminal utility from the AGENT's perspective.
-          +1000 : agent wins
-          -1000 : pursuer wins (agent caught)
-              0 : timeout
-        """
+        
         if self.agent_won():
             return 1000
         if self.pursuer_won():
@@ -68,55 +48,37 @@ class GameState:
         return 0
 
     def heuristic_eval(self):
-        """
-        non-terminal heuristic evaluation from agent perspective.
-        used by minimax with depth limit and expectimax.
-
-        score = (pursuer_dist_to_goal - agent_dist_to_goal) * 10
-                + agent_dist_to_pursuer * 5
-
-        higher is better for the agent.
-
-        known limitation: uses manhattan distance which ignores walls.
-        the true shortest path through the maze can differ significantly
-        from the straight-line manhattan estimate, especially at high
-        obstacle densities. a more accurate eval would use bfs distance
-        but that costs o(n^2) per node evaluation and makes minimax and
-        expectimax too slow at any useful search depth. manhattan distance
-        is chosen deliberately for computational efficiency. the tradeoff
-        is that the agent may make suboptimal decisions near dense wall
-        clusters. this is acknowledged as a limitation in our analysis.
-        """
+        
         ad = _manhattan(self.agent_pos,   self.maze.goal)
         pd = _manhattan(self.pursuer_pos, self.maze.goal)
         sd = _manhattan(self.agent_pos,   self.pursuer_pos)
 
-        # agent wants: small ad (close to goal), large sd (far from pursuer)
+       
         return (pd - ad) * 10 + sd * 5
 
-    #  move generation 
+
 
     def get_agent_moves(self):
-        """Returns list of (action, new_agent_pos) for all legal agent moves."""
+        
         moves = []
         for action, pos, _ in self.maze.get_neighbors(self.agent_pos):
             moves.append((action, pos))
-        # Agent can also STAY (useful in adversarial settings)
+        
         moves.append(("STAY", self.agent_pos))
         return moves
 
     def get_pursuer_moves(self):
-        """Returns list of (action, new_pursuer_pos) for all legal pursuer moves."""
+        
         moves = []
         for action, pos, _ in self.maze.get_neighbors(self.pursuer_pos):
             moves.append((action, pos))
         moves.append(("STAY", self.pursuer_pos))
         return moves
 
-    #  state transitions 
+
 
     def apply_agent_move(self, new_agent_pos):
-        """Returns a new GameState after agent moves. Does NOT mutate self."""
+       
         new = GameState(
             maze        = self.maze,
             agent_pos   = new_agent_pos,
@@ -128,7 +90,7 @@ class GameState:
         return new
 
     def apply_pursuer_move(self, new_pursuer_pos):
-        """Returns a new GameState after pursuer moves. Does NOT mutate self."""
+        
         new = GameState(
             maze        = self.maze,
             agent_pos   = self.agent_pos,
@@ -139,7 +101,7 @@ class GameState:
         )
         return new
 
-    # display 
+  
 
     def display(self, label=""):
         self.maze.display(
@@ -154,7 +116,7 @@ class GameState:
 
 
 
-# utility helpers
+
 
 
 def _manhattan(a, b):

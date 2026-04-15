@@ -1,26 +1,3 @@
-"""
-experiments.py - batch experiment runner, CSV exporter, summary generator, and plots
-project: adversarial maze navigation
-
-Runs both:
-  1. Full-observability experiments via main.simulate_game(...)
-  2. Partial-observability experiments via partial_game.simulate_partial_game(...)
-
-Features:
-  - sweeps maze sizes, densities, dynamic/static settings, seeds
-  - supports repeated trials
-  - exports raw CSV results
-  - exports summary CSV results
-  - generates matplotlib plots
-  - continues running even if some configurations fail
-
-Example usage:
-  python experiments.py --mode full
-  python experiments.py --mode partial
-  python experiments.py --mode both
-  python experiments.py --mode both --trials 5 --sizes 11 13 17 --densities 0.15 0.25 0.35
-  python experiments.py --mode partial --visibility 2 4 6 --dynamic-only
-"""
 
 from __future__ import annotations
 
@@ -40,10 +17,6 @@ from main import simulate_game
 from partial_game import simulate_partial_game
 
 
-# ---------------------------------------------------------------------
-# Default experiment grids
-# ---------------------------------------------------------------------
-
 FULL_AGENTS = ["minimax", "alpha_beta", "expectimax", "lrta", "hill_climb", "beam_search"]
 PARTIAL_AGENTS = ["online_astar", "online_lrta", "exploration"]
 PURSUERS = ["random", "greedy", "beam", "astar"]
@@ -52,11 +25,6 @@ DEFAULT_SIZES = [11, 13, 17, 21]
 DEFAULT_DENSITIES = [0.15, 0.25, 0.35]
 DEFAULT_VISIBILITY = [2, 4, 6]
 DEFAULT_TRIALS = 5
-
-
-# ---------------------------------------------------------------------
-# Utilities
-# ---------------------------------------------------------------------
 
 def ensure_dir(path: Path) -> None:
     path.mkdir(parents=True, exist_ok=True)
@@ -67,7 +35,7 @@ def outcome_to_score(outcome: str) -> int:
         return 1
     if outcome == "pursuer_win":
         return 0
-    return 0  # timeout treated as non-win for win-rate plots
+    return 0  
 
 
 def safe_mean(values: List[float]) -> float:
@@ -97,11 +65,6 @@ def normalize_result_value(value: Any) -> Any:
 def normalize_row(row: Dict[str, Any]) -> Dict[str, Any]:
     return {k: normalize_result_value(v) for k, v in row.items()}
 
-
-# ---------------------------------------------------------------------
-# Single-run wrappers
-# ---------------------------------------------------------------------
-
 def run_full_once(
     size: int,
     density: float,
@@ -113,9 +76,7 @@ def run_full_once(
     depth_limit: int,
     verbose: bool = False,
 ) -> Dict[str, Any]:
-    """
-    Run one full-observability experiment configuration.
-    """
+   
     maze = Maze.generate_random(size, size, density, seed=seed)
     stats = simulate_game(
         maze=maze,
@@ -160,9 +121,7 @@ def run_partial_once(
     step_limit: int,
     verbose: bool = False,
 ) -> Dict[str, Any]:
-    """
-    Run one partial-observability experiment configuration.
-    """
+   
     maze = Maze.generate_random(size, size, density, seed=seed)
     stats = simulate_partial_game(
         maze=maze,
@@ -194,11 +153,6 @@ def run_partial_once(
         "error": "",
     }
     return normalize_row(row)
-
-
-# ---------------------------------------------------------------------
-# Batch runners
-# ---------------------------------------------------------------------
 
 def run_full_experiments(
     sizes: List[int],
@@ -333,10 +287,6 @@ def run_partial_experiments(
 
     return rows
 
-
-# ---------------------------------------------------------------------
-# Summaries
-# ---------------------------------------------------------------------
 
 SUMMARY_FIELDS = [
     "mode",
@@ -555,9 +505,6 @@ def summarize_partial_visibility(rows: List[Dict[str, Any]]) -> List[Dict[str, A
     out.sort(key=lambda r: (str(r["agent"]), str(r["dynamic"]), str(r["visibility_radius"])))
     return out
 
-# ---------------------------------------------------------------------
-# Plotting
-# ---------------------------------------------------------------------
 
 def plot_heatmap(matrix, row_labels, col_labels, title, save_path):
     import matplotlib.pyplot as plt
@@ -587,7 +534,7 @@ def try_make_plots(raw_rows: List[Dict[str, Any]], summary_rows: List[Dict[str, 
     plots_dir = out_dir / "plots"
     ensure_dir(plots_dir)
 
-    # Plot 1: win rate by agent (aggregated across all configs per mode)
+    
     for mode in ("full", "partial"):
         subset = [r for r in summary_rows if r["mode"] == mode]
         if not subset:
@@ -610,7 +557,7 @@ def try_make_plots(raw_rows: List[Dict[str, Any]], summary_rows: List[Dict[str, 
         plt.savefig(plots_dir / f"win_rate_by_agent_{mode}.png", dpi=160)
         plt.close()
 
-    # Plot 2: runtime by agent (aggregated across all configs per mode)
+    
     for mode in ("full", "partial"):
         subset = [r for r in summary_rows if r["mode"] == mode]
         if not subset:
@@ -633,7 +580,7 @@ def try_make_plots(raw_rows: List[Dict[str, Any]], summary_rows: List[Dict[str, 
         plt.savefig(plots_dir / f"runtime_by_agent_{mode}.png", dpi=160)
         plt.close()
 
-    # Plot 3: win rate vs maze size for full mode
+
     full_subset = [r for r in summary_rows if r["mode"] == "full"]
     if full_subset:
         agents = sorted({r["agent"] for r in full_subset})
@@ -656,7 +603,7 @@ def try_make_plots(raw_rows: List[Dict[str, Any]], summary_rows: List[Dict[str, 
         plt.savefig(plots_dir / "full_win_rate_vs_size.png", dpi=160)
         plt.close()
 
-    # Plot 4: explored fraction vs visibility radius for partial mode
+
     partial_subset = [r for r in summary_rows if r["mode"] == "partial" and r["avg_cells_explored"] is not None]
     if partial_subset:
         agents = sorted({r["agent"] for r in partial_subset})
@@ -683,7 +630,7 @@ def try_make_plots(raw_rows: List[Dict[str, Any]], summary_rows: List[Dict[str, 
         plt.savefig(plots_dir / "partial_explored_vs_radius.png", dpi=160)
         plt.close()
 
-    # Plot 5: full-mode agent x pursuer win-rate heatmap
+    
     full_agent_pursuer = [r for r in summary_rows if r["mode"] == "full"]
     if full_agent_pursuer:
         agents = sorted({r["agent"] for r in full_agent_pursuer})
@@ -709,7 +656,7 @@ def try_make_plots(raw_rows: List[Dict[str, Any]], summary_rows: List[Dict[str, 
             plots_dir / "full_agent_pursuer_winrate_heatmap.png",
         )
 
-    # Plot 6: partial-mode agent x pursuer win-rate heatmap
+    
     partial_agent_pursuer = [r for r in summary_rows if r["mode"] == "partial"]
     if partial_agent_pursuer:
         agents = sorted({r["agent"] for r in partial_agent_pursuer})
@@ -735,7 +682,7 @@ def try_make_plots(raw_rows: List[Dict[str, Any]], summary_rows: List[Dict[str, 
             plots_dir / "partial_agent_pursuer_winrate_heatmap.png",
         )
 
-    # Plot 7: partial-mode win rate vs visibility radius
+   
     partial_subset = [r for r in summary_rows if r["mode"] == "partial"]
     if partial_subset:
         agents = sorted({r["agent"] for r in partial_subset})
@@ -763,11 +710,6 @@ def try_make_plots(raw_rows: List[Dict[str, Any]], summary_rows: List[Dict[str, 
         plt.close()
 
     print(f"Plots written to: {plots_dir}")
-
-
-# ---------------------------------------------------------------------
-# CLI
-# ---------------------------------------------------------------------
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Batch experiments for adversarial maze navigation")
@@ -798,11 +740,6 @@ def resolve_dynamic_values(args: argparse.Namespace) -> List[bool]:
     if args.dynamic_only:
         return [True]
     return [False, True]
-
-
-# ---------------------------------------------------------------------
-# Main
-# ---------------------------------------------------------------------
 
 RAW_FIELDS = [
     "mode",

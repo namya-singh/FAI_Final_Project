@@ -1,15 +1,3 @@
-"""
-
-Algorithms:
-    - BFS
-    - DFS
-    - UCS
-    - A* (manhattan / euclidean heuristics)
-    - Hill Climbing
-    - Beam Search
-Each returns a SearchResult.
-"""
-
 import heapq
 import math
 import time
@@ -18,10 +6,6 @@ from dataclasses import dataclass, field
 from typing import List
 
 from node import Node
-
-
-
-#  result container
 
 
 @dataclass
@@ -52,10 +36,6 @@ class SearchResult:
         )
 
 
-
-#  heuristics
-
-
 def heuristic_manhattan(pos, goal):
     return abs(pos[0] - goal[0]) + abs(pos[1] - goal[1])
 
@@ -72,10 +52,6 @@ HEURISTICS = {
 }
 
 
-
-#  helper in sharing
-
-
 def _expand(node, maze):
     for action, next_state, step_cost in maze.get_neighbors(node.state):
         yield Node(state=next_state, parent=node, action=action,
@@ -83,11 +59,8 @@ def _expand(node, maze):
 
 
 
-#  BFS
-
-
 def bfs(maze, start=None):
-    """BFS from start (defaults to maze.start) to maze.goal."""
+    
     t0       = time.perf_counter()
     root     = Node(start or maze.start)
     frontier = deque([root])
@@ -116,9 +89,6 @@ def bfs(maze, start=None):
 
 
 
-#  DFS
-
-
 def dfs(maze, start=None):
     t0       = time.perf_counter()
     root     = Node(start or maze.start)
@@ -145,10 +115,6 @@ def dfs(maze, start=None):
                 frontier.append(child)
 
     return SearchResult("DFS", runtime_ms=(time.perf_counter()-t0)*1000, nodes_expanded=expanded)
-
-
-
-#  UCS
 
 
 def ucs(maze, start=None):
@@ -181,12 +147,8 @@ def ucs(maze, start=None):
     return SearchResult("UCS", runtime_ms=(time.perf_counter()-t0)*1000, nodes_expanded=expanded)
 
 
-
-#  A*
-
-
 def astar(maze, heuristic_name="manhattan", start=None):
-    """A* from start (defaults to maze.start) to maze.goal."""
+   
     h       = HEURISTICS[heuristic_name]
     t0      = time.perf_counter()
     s       = start or maze.start
@@ -221,7 +183,7 @@ def astar(maze, heuristic_name="manhattan", start=None):
                         runtime_ms=(time.perf_counter()-t0)*1000, nodes_expanded=expanded)
 
 
-# Hill-Climbing
+
 
 def hill_climb(maze, heuristic_name="manhattan", start=None,
                allow_sideways=False, max_sideways=10):
@@ -251,14 +213,14 @@ def hill_climb(maze, heuristic_name="manhattan", start=None,
         best = neighbors[0]
         best_h = h(best.state, maze.goal)
 
-        # only strict improvement followed
+        
         if best_h < current_h:
             current = best
             sideways = 0
             visited.add(current.state)
             continue
 
-        # Sideways movement
+       
         if (allow_sideways and best_h == current_h
                 and sideways < max_sideways
                 and best.state not in visited):
@@ -267,13 +229,13 @@ def hill_climb(maze, heuristic_name="manhattan", start=None,
             visited.add(current.state)
             continue
 
-        # escapes from Local maxima/plateau
+        
         break
 
     return SearchResult("Hill Climb", heuristic=heuristic_name, runtime_ms=(time.perf_counter()-t0)*1000,
                         nodes_expanded=expanded, max_frontier=1)
 
-# Beam Search
+
 
 def beam_search(maze, beam_width=3, heuristic_name="manhattan", start=None):
     h = HEURISTICS[heuristic_name]
@@ -288,7 +250,7 @@ def beam_search(maze, beam_width=3, heuristic_name="manhattan", start=None):
     while frontier:
         max_f = max(max_f, len(frontier))
 
-        # check before expanding
+        
         for node in frontier:
             if maze.is_goal(node.state):
                 return SearchResult(f"Beam Search(k={beam_width})", heuristic=heuristic_name,
@@ -321,25 +283,10 @@ def beam_search(maze, beam_width=3, heuristic_name="manhattan", start=None):
                         max_frontier=max_f
                         )
 
-# weighted a*
+
 
 def weighted_astar(maze, heuristic_name="manhattan", weight=1.5, start=None):
-    """
-    weighted a* search — trades optimality for speed by inflating the heuristic.
-
-    f(n) = g(n) + w * h(n)  where w > 1
-
-    with w=1 this is identical to standard a*.
-    with w>1 the agent becomes more greedy, expanding fewer nodes
-    but potentially finding a suboptimal path.
-    the resulting path cost is guaranteed to be within w * optimal_cost.
-
-    this is an epsilon-suboptimal algorithm: useful when speed matters
-    more than finding the absolute shortest path.
-
-    args:
-        weight : inflation factor w >= 1.0 (default 1.5)
-    """
+    
     h        = HEURISTICS[heuristic_name]
     t0       = time.perf_counter()
     s        = start or maze.start
@@ -381,24 +328,10 @@ def weighted_astar(maze, heuristic_name="manhattan", weight=1.5, start=None):
     )
 
 
-# ida* (iterative deepening a*)
+
 
 def idastar(maze, heuristic_name="manhattan", start=None):
-    """
-    ida* (iterative deepening a*) — memory-bounded optimal search.
-
-    instead of storing all nodes in a priority queue like a*, ida* runs
-    repeated depth-first searches with increasing f-cost thresholds.
-    each iteration only follows paths where f(n) <= threshold.
-
-    memory usage: o(d) where d = solution depth (vs o(b^d) for a*).
-    time complexity: same as a* in the worst case.
-
-    complete: yes  |  optimal: yes (admissible heuristic)  |  memory: o(d)
-
-    this is the right algorithm when the maze is very large and a* runs
-    out of memory — it finds the same optimal path using almost no space.
-    """
+   
     h       = HEURISTICS[heuristic_name]
     t0      = time.perf_counter()
     s       = start or maze.start

@@ -1,15 +1,5 @@
 
 class Node:
-    """
-    Represents a single node in the search tree.
-
-    Attributes:
-        state     : (row, col) position in the maze
-        parent    : parent Node (None for root)
-        action    : action taken to reach this node ('UP', 'DOWN', etc.)
-        path_cost : cumulative cost g(n) from start to this node
-        depth     : depth in the search tree
-    """
 
     def __init__(self, state, parent=None, action=None, path_cost=0):
         self.state     = state
@@ -19,7 +9,6 @@ class Node:
         self.depth     = (parent.depth + 1) if parent else 0
 
     def solution(self):
-        """Returns list of actions from root → this node."""
         actions = []
         node = self
         while node.parent is not None:
@@ -28,7 +17,6 @@ class Node:
         return list(reversed(actions))
 
     def path(self):
-        """Returns list of states from root → this node."""
         states = []
         node = self
         while node is not None:
